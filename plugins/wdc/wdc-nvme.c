@@ -628,43 +628,45 @@ struct __packed wdc_nvme_ext_smart_log {
 	__u8  ext_smart_lpg[16];			/* 496 Log page GUID */
 };
 
-enum {
-	SCAO_PMUW               =  0,	/* Physical media units written */
-	SCAO_PMUR               = 16,	/* Physical media units read */
-	SCAO_BUNBR              = 32,	/* Bad user nand blocks raw */
-	SCAO_BUNBN              = 38,	/* Bad user nand blocks normalized */
-	SCAO_BSNBR              = 40,	/* Bad system nand blocks raw */
-	SCAO_BSNBN              = 46,	/* Bad system nand blocks normalized */
-	SCAO_XRC                = 48,	/* XOR recovery count */
-	SCAO_UREC               = 56,	/* Uncorrectable read error count */
-	SCAO_SEEC               = 64,	/* Soft ecc error count */
-	SCAO_EECE               = 72,	/* End to end corrected errors */
-	SCAO_EEDC               = 76,	/* End to end detected errors */
-	SCAO_SDPU               = 80,	/* System data percent used */
-	SCAO_RFSC               = 81,	/* Refresh counts */
-	SCAO_MXUDEC             = 88,	/* Max User data erase counts */
-	SCAO_MNUDEC             = 92,	/* Min User data erase counts */
-	SCAO_NTTE               = 96,	/* Number of Thermal throttling events */
-	SCAO_CTS                = 97,	/* Current throttling status */
-	SCAO_EVF                = 98,      /* Errata Version Field */
-	SCAO_PVF                = 99,      /* Point Version Field */
-	SCAO_MIVF               = 101,     /* Minor Version Field */
-	SCAO_MAVF               = 103,     /* Major Version Field */
-	SCAO_PCEC               = 104,	/* PCIe correctable error count */
-	SCAO_ICS                = 112,	/* Incomplete shutdowns */
-	SCAO_PFB                = 120,	/* Percent free blocks */
-	SCAO_CPH                = 128,	/* Capacitor health */
-	SCAO_NEV                = 130,     /* NVMe Errata Version */
-	SCAO_UIO                = 136,	/* Unaligned I/O */
-	SCAO_SVN                = 144,	/* Security Version Number */
-	SCAO_NUSE               = 152,	/* NUSE - Namespace utilization */
-	SCAO_PSC                = 160,	/* PLP start count */
-	SCAO_EEST               = 176,	/* Endurance estimate */
-	SCAO_PLRC               = 192,     /* PCIe Link Retraining Count */
-	SCAO_PSCC               = 200,	/* Power State Change Count */
-	SCAO_LPV                = 494,	/* Log page version */
-	SCAO_LPG                = 496,	/* Log page GUID */
-};
+typedef enum
+{
+    SCAO_PMUW               =  0,	/* Physical media units written */
+    SCAO_PMUR               = 16,	/* Physical media units read */
+    SCAO_BUNBR              = 32,	/* Bad user nand blocks raw */
+    SCAO_BUNBN              = 38,	/* Bad user nand blocks normalized */
+    SCAO_BSNBR              = 40,	/* Bad system nand blocks raw */
+    SCAO_BSNBN              = 46,	/* Bad system nand blocks normalized */
+    SCAO_XRC                = 48,	/* XOR recovery count */
+    SCAO_UREC               = 56,	/* Uncorrectable read error count */
+    SCAO_SEEC               = 64,	/* Soft ecc error count */
+    SCAO_EECE               = 72,	/* End to end corrected errors */
+    SCAO_EEDC               = 76,	/* End to end detected errors */
+    SCAO_SDPU               = 80,	/* System data percent used */
+    SCAO_RFSC               = 81,	/* Refresh counts */
+    SCAO_MXUDEC             = 88,	/* Max User data erase counts */
+    SCAO_MNUDEC             = 92,	/* Min User data erase counts */
+    SCAO_NTTE               = 96,	/* Number of Thermal throttling events */
+    SCAO_CTS                = 97,	/* Current throttling status */
+    SCAO_EVF                = 98,      /* Errata Version Field */
+    SCAO_PVF                = 99,      /* Point Version Field */
+    SCAO_MIVF               = 101,     /* Minor Version Field */
+    SCAO_MAVF               = 103,     /* Major Version Field */
+    SCAO_PCEC               = 104,	/* PCIe correctable error count */
+    SCAO_ICS                = 112,	/* Incomplete shutdowns */
+    SCAO_PFB                = 120,	/* Percent free blocks */
+    SCAO_CPH                = 128,	/* Capacitor health */
+    SCAO_NEV                = 130,     /* NVMe Errata Version */
+    SCAO_UIO                = 136,	/* Unaligned I/O */
+    SCAO_SVN                = 144,	/* Security Version Number */
+    SCAO_NUSE               = 152,	/* NUSE - Namespace utilization */
+    SCAO_PSC                = 160,	/* PLP start count */
+    SCAO_EEST               = 176,	/* Endurance estimate */
+    SCAO_PLRC               = 192,     /* PCIe Link Retraining Count */
+    SCAO_PSCC               = 200,	/* Power State Change Count */
+    SCAO_HWREV              = 208,	/* Hardware Revision */
+    SCAO_LPV                = 494,	/* Log page version */
+    SCAO_LPG                = 496,	/* Log page GUID */
+} SMART_CLOUD_ATTRIBUTE_OFFSETS_V3;
 
 struct ocp_bad_nand_block_count {
 	__u64 raw : 48;
@@ -6439,10 +6441,9 @@ static void wdc_print_smart_cloud_attr_C0_normal(void *data)
 	smart_log_ver = (uint16_t)le16_to_cpu(*(uint16_t *)&log_data[SCAO_LPV]);
 	printf("  Log page version				: %"PRIu16"\n", smart_log_ver);
 	printf("  Log page GUID					: 0x");
-	printf("%"PRIx64"%"PRIx64"\n",
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_LPG + 8]),
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_LPG]));
-	if (smart_log_ver > 2) {
+	printf("%"PRIx64"%"PRIx64"\n",(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_LPG + 8]),
+			(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_LPG]));
+	if(smart_log_ver >= 3) {
 		printf("  Errata Version Field				: %d\n",
 		       (__u8)log_data[SCAO_EVF]);
 		printf("  Point Version Field				: %"PRIu16"\n",
@@ -6454,11 +6455,11 @@ static void wdc_print_smart_cloud_attr_C0_normal(void *data)
 		printf("  NVMe Errata Version				: %d\n",
 		       (__u8)log_data[SCAO_NEV]);
 		printf("  PCIe Link Retraining Count			: %"PRIu64"\n",
-		       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PLRC]));
-	}
-	if (smart_log_ver > 3) {
-		printf("  Power State Change Count				: %"PRIu64"\n",
-		       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PSCC]));
+			(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PLRC]));
+		printf("  Power State Change Count			: %"PRIu64"\n",
+			(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PSCC]));
+		printf("  Hardware Revision				: %s\n",
+			uint128_t_to_string(le128_to_cpu(&log_data[SCAO_HWREV])));
 	}
 	printf("\n");
 }
@@ -6530,7 +6531,7 @@ static void wdc_print_smart_cloud_attr_C0_json(void *data)
 		(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_LPG + 8]),
 		(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_LPG]));
 	json_object_add_value_string(root, "Log page GUID", guid);
-	if (smart_log_ver > 2) {
+	if(smart_log_ver >= 3) {
 		json_object_add_value_uint(root, "Errata Version Field",
 				(__u8)log_data[SCAO_EVF]);
 		json_object_add_value_uint(root, "Point Version Field",
@@ -6543,10 +6544,10 @@ static void wdc_print_smart_cloud_attr_C0_json(void *data)
 				(__u8)log_data[SCAO_NEV]);
 		json_object_add_value_uint64(root, "PCIe Link Retraining Count",
 				(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PLRC]));
-	}
-	if (smart_log_ver > 3) {
 		json_object_add_value_uint64(root, "Power State Change Count",
 				(uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PSCC]));
+		json_object_add_value_uint128(root, "Hardware Revision",
+				le128_to_cpu(&log_data[SCAO_HWREV]));
 	}
 	json_print_object(root, NULL);
 	printf("\n");
