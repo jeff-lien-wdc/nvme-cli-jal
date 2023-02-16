@@ -136,27 +136,25 @@
 #define WDC_DRIVE_CAP_PCIE_STATS			0x0000000008000000
 #define WDC_DRIVE_CAP_HW_REV_LOG_PAGE			0x0000000010000000
 #define WDC_DRIVE_CAP_C3_LOG_PAGE			0x0000000020000000
-#define WDC_DRIVE_CAP_CLOUD_BOOT_SSD_VERSION		0x0000000040000000
+#define WDC_DRIVE_CAP_CLOUD_BOOT_SSD_VERSION	0x0000000040000000
 #define WDC_DRIVE_CAP_CLOUD_LOG_PAGE			0x0000000080000000
 
 #define WDC_DRIVE_CAP_DRIVE_ESSENTIALS			0x0000000100000000
 #define WDC_DRIVE_CAP_DUI_DATA				0x0000000200000000
 #define WDC_SN730B_CAP_VUC_LOG				0x0000000400000000
-#define WDC_DRIVE_CAP_DUI				0x0000000800000000
-#define WDC_DRIVE_CAP_PURGE				0x0000001000000000
-#define WDC_DRIVE_CAP_OCP_C1_LOG_PAGE			0x0000002000000000
-#define WDC_DRIVE_CAP_OCP_C4_LOG_PAGE			0x0000004000000000
-#define WDC_DRIVE_CAP_OCP_C5_LOG_PAGE			0x0000008000000000
-#define WDC_DRIVE_CAP_DEVICE_WAF			0x0000010000000000
-#define WDC_DRIVE_CAP_SET_LATENCY_MONITOR		0x0000020000000000
+#define WDC_DRIVE_CAP_DUI    				0x0000000800000000
+#define WDC_DRIVE_CAP_PURGE  				0x0000001000000000
+#define WDC_DRIVE_CAP_OCP_C1_LOG_PAGE		0x0000002000000000
+#define WDC_DRIVE_CAP_OCP_C4_LOG_PAGE		0x0000004000000000
+#define WDC_DRIVE_CAP_OCP_C5_LOG_PAGE		0x0000008000000000
+#define WDC_DRIVE_CAP_DEVICE_WAF            0x0000010000000000
+#define WDC_DRIVE_CAP_TCG_CONFIG_LOG_PAGE   0x0000020000000000
 
-#define WDC_DRIVE_CAP_SMART_LOG_MASK			(WDC_DRIVE_CAP_C0_LOG_PAGE | \
-							 WDC_DRIVE_CAP_C1_LOG_PAGE | \
-							 WDC_DRIVE_CAP_CA_LOG_PAGE | \
-							 WDC_DRIVE_CAP_D0_LOG_PAGE)
-#define WDC_DRIVE_CAP_CLEAR_PCIE_MASK			(WDC_DRIVE_CAP_CLEAR_PCIE | \
-							 WDC_DRIVE_CAP_VUC_CLEAR_PCIE | \
-							 WDC_DRIVE_CAP_VU_FID_CLEAR_PCIE)
+#define WDC_DRIVE_CAP_SMART_LOG_MASK	(WDC_DRIVE_CAP_C0_LOG_PAGE | WDC_DRIVE_CAP_C1_LOG_PAGE | \
+                                         WDC_DRIVE_CAP_CA_LOG_PAGE | WDC_DRIVE_CAP_D0_LOG_PAGE)
+#define WDC_DRIVE_CAP_CLEAR_PCIE_MASK       (WDC_DRIVE_CAP_CLEAR_PCIE | \
+                                             WDC_DRIVE_CAP_VUC_CLEAR_PCIE | \
+                                             WDC_DRIVE_CAP_VU_FID_CLEAR_PCIE)
 #define WDC_DRIVE_CAP_FW_ACTIVATE_HISTORY_MASK		(WDC_DRIVE_CAP_FW_ACTIVATE_HISTORY | \
 							 WDC_DRIVE_CAP_FW_ACTIVATE_HISTORY_C2)
 #define WDC_DRIVE_CAP_CLEAR_FW_ACT_HISTORY_MASK		(WDC_DRIVE_CAP_CLEAR_FW_ACT_HISTORY | \
@@ -749,56 +747,92 @@ enum {
 #define WDC_NVME_GET_HW_REV_LOG_OPCODE  0xc6
 #define WDC_NVME_HW_REV_LOG_PAGE_LEN    512
 
-struct __packed wdc_nvme_hw_rev_log {
-	__u8  hw_rev_gdr;           /*   0 Global Device HW Revision     */
-	__u8  hw_rev_ar;            /*   1 ASIC HW Revision              */
-	__u8  hw_rev_pbc_mc;        /*   2 PCB Manufacturer Code         */
-	__u8  hw_rev_dram_mc;       /*   3 DRAM Manufacturer Code        */
-	__u8  hw_rev_nand_mc;       /*   4 NAND Manufacturer Code        */
-	__u8  hw_rev_pmic1_mc;      /*   5 PMIC 1 Manufacturer Code      */
-	__u8  hw_rev_pmic2_mc;      /*   6 PMIC 2 Manufacturer Code      */
-	__u8  hw_rev_c1_mc;         /*   7 Other Component 1 Manf Code   */
-	__u8  hw_rev_c2_mc;         /*   8 Other Component 2 Manf Code   */
-	__u8  hw_rev_c3_mc;         /*   9 Other Component 3 Manf Code   */
-	__u8  hw_rev_c4_mc;         /*  10 Other Component 4 Manf Code   */
-	__u8  hw_rev_c5_mc;         /*  11 Other Component 5 Manf Code   */
-	__u8  hw_rev_c6_mc;         /*  12 Other Component 6 Manf Code   */
-	__u8  hw_rev_c7_mc;         /*  13 Other Component 7 Manf Code   */
-	__u8  hw_rev_c8_mc;         /*  14 Other Component 8 Manf Code   */
-	__u8  hw_rev_c9_mc;         /*  15 Other Component 9 Manf Code   */
-	__u8  hw_rev_rsrvd1[48];    /*  16 Reserved 48 bytes             */
-	__u8  hw_rev_dev_mdi[16];   /*  64 Device Manf Detailed Info     */
-	__u8  hw_rev_asic_di[16];   /*  80 ASIC Detailed Info            */
-	__u8  hw_rev_pcb_di[16];    /*  96 PCB Detailed Info             */
-	__u8  hw_rev_dram_di[16];   /* 112 DRAM Detailed Info            */
-	__u8  hw_rev_nand_di[16];   /* 128 NAND Detailed Info            */
-	__u8  hw_rev_pmic1_di[16];  /* 144 PMIC1 Detailed Info           */
-	__u8  hw_rev_pmic2_di[16];  /* 160 PMIC2 Detailed Info           */
-	__u8  hw_rev_c1_di[16];     /* 176 Component 1 Detailed Info     */
-	__u8  hw_rev_c2_di[16];     /* 192 Component 2 Detailed Info     */
-	__u8  hw_rev_c3_di[16];     /* 208 Component 3 Detailed Info     */
-	__u8  hw_rev_c4_di[16];     /* 224 Component 4 Detailed Info     */
-	__u8  hw_rev_c5_di[16];     /* 240 Component 5 Detailed Info     */
-	__u8  hw_rev_c6_di[16];     /* 256 Component 6 Detailed Info     */
-	__u8  hw_rev_c7_di[16];     /* 272 Component 7 Detailed Info     */
-	__u8  hw_rev_c8_di[16];     /* 288 Component 8 Detailed Info     */
-	__u8  hw_rev_c9_di[16];     /* 304 Component 9 Detailed Info     */
-	__u8  hw_rev_sn[32];        /* 320 Serial Number                 */
-	__u8  hw_rev_rsrvd2[142];   /* 352 Reserved 143 bytes            */
-	__u16 hw_rev_version;       /* 494 Log Page Version              */
-	__u8  hw_rev_guid[16];      /* 496 Log Page GUID                 */
-};
+typedef struct __attribute__((__packed__)) wdc_nvme_hw_rev_log
+{
+	__u8  hw_rev_gdr;           /*   0 Global Device HW Revision      */
+	__u8  hw_rev_ar;            /*   1 ASIC HW Revision               */
+	__u8  hw_rev_pbc_mc;        /*   2 PCB Manufacturer Code          */
+	__u8  hw_rev_dram_mc;       /*   3 DRAM Manufacturer Code         */
+	__u8  hw_rev_nand_mc;       /*   4 NAND Manufacturer Code         */
+	__u8  hw_rev_pmic1_mc;      /*   5 PMIC 1 Manufacturer Code       */
+	__u8  hw_rev_pmic2_mc;      /*   6 PMIC 2 Manufacturer Code       */
+	__u8  hw_rev_c1_mc;         /*   7 Other Component 1 Manf Code    */
+	__u8  hw_rev_c2_mc;         /*   8 Other Component 2 Manf Code    */
+	__u8  hw_rev_c3_mc;         /*   9 Other Component 3 Manf Code    */
+	__u8  hw_rev_c4_mc;         /*  10 Other Component 4 Manf Code    */
+	__u8  hw_rev_c5_mc;         /*  11 Other Component 5 Manf Code    */
+	__u8  hw_rev_c6_mc;         /*  12 Other Component 6 Manf Code    */
+	__u8  hw_rev_c7_mc;         /*  13 Other Component 7 Manf Code    */
+	__u8  hw_rev_c8_mc;         /*  14 Other Component 8 Manf Code    */
+	__u8  hw_rev_c9_mc;         /*  15 Other Component 9 Manf Code    */
+	__u8  hw_rev_rsrvd1[48];    /*  16 Reserved 48 bytes              */
+	__u8  hw_rev_dev_mdi[16];   /*  64 Device Manf Detailed Info      */
+	__u8  hw_rev_asic_di[16];   /*  80 ASIC Detailed Info             */
+	__u8  hw_rev_pcb_di[16];    /*  96 PCB Detailed Info              */
+	__u8  hw_rev_dram_di[16];   /* 112 DRAM Detailed Info             */
+	__u8  hw_rev_nand_di[16];   /* 128 NAND Detailed Info             */
+	__u8  hw_rev_pmic1_di[16];  /* 144 PMIC1 Detailed Info            */
+	__u8  hw_rev_pmic2_di[16];  /* 160 PMIC2 Detailed Info            */
+	__u8  hw_rev_c1_di[16];     /* 176 Component 1 Detailed Info      */
+	__u8  hw_rev_c2_di[16];     /* 192 Component 2 Detailed Info      */
+	__u8  hw_rev_c3_di[16];     /* 208 Component 3 Detailed Info      */
+	__u8  hw_rev_c4_di[16];     /* 224 Component 4 Detailed Info      */
+	__u8  hw_rev_c5_di[16];     /* 240 Component 5 Detailed Info      */
+	__u8  hw_rev_c6_di[16];     /* 256 Component 6 Detailed Info      */
+	__u8  hw_rev_c7_di[16];     /* 272 Component 7 Detailed Info      */
+	__u8  hw_rev_c8_di[16];     /* 288 Component 8 Detailed Info      */
+	__u8  hw_rev_c9_di[16];     /* 304 Component 9 Detailed Info      */
+	__u8  hw_rev_sn[32];        /* 320 Serial Number                  */
+	__u8  hw_rev_coo[32];       /* 352 Country of Origin              */
+	__u8  hw_rev_rsrvd2[110];   /* 384 Reserved 110 bytes             */
+	__u16 hw_rev_version;       /* 494 Log Page Version               */
+	__u8  hw_rev_guid[16];      /* 496 Log Page GUID                  */
+} wdc_nvme_hw_rev_log;
 
 static __u8 hw_rev_log_guid[WDC_NVME_C6_GUID_LENGTH] = {
 	0xAA, 0xB0, 0x05, 0xF5, 0x13, 0x5E, 0x48, 0x15,
 	0xAB, 0x89, 0x05, 0xBA, 0x8B, 0xE2, 0xBF, 0x3C
 };
 
-struct __packed WDC_DE_VU_FILE_META_DATA {
-	__u8 fileName[WDC_DE_FILE_NAME_SIZE];
-	__u16 fileID;
-	__u64 fileSize;
-};
+#define WDC_NVME_C7_GUID_LENGTH            16
+#define WDC_NVME_GET_TCG_CONFIG_LOG_ID     0xc7
+#define WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN   512
+
+typedef struct __attribute__((__packed__)) wdc_nvme_tcg_config_log
+{
+	__u8  state;                   /*   0 State                          */
+	__u8  rsrvd1[3];               /*   1 Reserved                       */
+	__u8  locking_sp_act_count;    /*   4 Locking SP Activation Count    */
+	__u8  tper_revert_count;       /*   5 TPer Revert Count              */
+	__u8  locking_sp_revert_count; /*   6 Locking SP Revert Count        */
+	__u8  num_locking_obj;         /*   7 Number of Locking Objects      */
+	__u8  num_sum_locking_obj;     /*   8 Number of Single User Mode Locking Objects */
+	__u8  num_rp_locking_obj;      /*   9 Number of Range Provisioned Locking Objects */
+	__u8  num_np_locking_obj;      /*  10 Number of Namespace Provisioned Locking Objects */
+	__u8  num_rl_locking_obj;      /*  11 Number of Read Locked Locking Objects */
+	__u8  num_wl_locking_obj;      /*  12 Number of Write Locked Locking Objects */
+	__u8  num_ru_locking_obj;      /*  13 Nubmer of Read Unlocked Locking Objects */
+	__u8  num_wu_locking_obj;      /*  14 Nubmer of Write Unlocked Locking Objects */
+	__u8  rsrvd2;                  /*  15 Reserved                       */
+	__u32 sid_auth_try_count;      /*  16 SID Authentication Try Count   */
+	__u32 sid_auth_try_limit;      /*  20 SID Authentication Try Limit   */
+	__u32 prgm_tcg_reset_count;    /*  24 Programmatic TCG_Reset Count   */
+	__u32 prgm_reset_lock_count;   /*  28 Programmatic Reset Lock Count  */
+	__u32 tcg_error_count;         /*  32 TCG Error Count                */
+	__u8  rsrvd3[458];             /*  36 Reserved                       */
+	__u16 log_page_version;        /* 494 Log Page Version               */
+	__u8  log_page_guid[16];         /* 496 Log Page GUID                  */
+} wdc_nvme_tcg_config_log;
+
+static __u8 tcg_config_log_guid[WDC_NVME_C7_GUID_LENGTH] = { 0x06, 0x40, 0x24, 0xBD, 0x7E, 0xE0, 0xE6, 0x83,
+		0xC0, 0x47, 0x54, 0xFA, 0x9D, 0x2A, 0xE0, 0x54 };
+
+typedef struct __attribute__((__packed__)) _WDC_DE_VU_FILE_META_DATA
+{
+    __u8 fileName[WDC_DE_FILE_NAME_SIZE];
+    __u16 fileID;
+    __u64 fileSize;
+} WDC_DE_VU_FILE_META_DATA, *PWDC_DE_VU_FILE_META_DATA;
 
 struct WDC_DRIVE_ESSENTIALS {
 	struct __packed WDC_DE_VU_FILE_META_DATA metaData;
@@ -5811,7 +5845,7 @@ static int nvme_get_hw_rev_log(int fd, __u8 **data, int uuid_index, __u32 namesp
 		return -1;
 	}
 
-	/* Get the 0xC0 log data */
+	/* Get the 0xC6 log data */
 	struct nvme_get_log_args args = {
 		.args_size	= sizeof(args),
 		.fd			= fd,
@@ -5857,6 +5891,63 @@ static int nvme_get_hw_rev_log(int fd, __u8 **data, int uuid_index, __u32 namesp
 	return ret;
 }
 
+static int nvme_get_tcg_config_log(int fd, __u8 **data, int uuid_index, __u32 namespace_id)
+{
+	int ret, i;
+	wdc_nvme_tcg_config_log *log_ptr = NULL;
+
+	if ((log_ptr = (wdc_nvme_tcg_config_log *)malloc(sizeof (__u8) * WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN)) == NULL) {
+		fprintf(stderr, "ERROR : WDC : malloc : %s\n", strerror(errno));
+		return -1;
+	}
+
+	/* Get the 0xC7 log data */
+	struct nvme_get_log_args args = {
+		.args_size	= sizeof(args),
+		.fd			= fd,
+		.lid		= WDC_NVME_GET_TCG_CONFIG_LOG_ID,
+		.nsid		= namespace_id,
+		.lpo		= 0,
+		.lsp		= NVME_LOG_LSP_NONE,
+		.lsi		= 0,
+		.rae		= false,
+		.uuidx		= uuid_index,
+		.csi		= NVME_CSI_NVM,
+		.ot			= false,
+		.len		= WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN,
+		.log		= log_ptr,
+		.timeout	= NVME_DEFAULT_IOCTL_TIMEOUT,
+		.result		= NULL,
+	};
+	ret = nvme_get_log(&args);
+
+	if (ret == 0) {
+
+		/* Verify GUID matches */
+		for (i = 0; i < WDC_NVME_C7_GUID_LENGTH; i++) {
+			if (tcg_config_log_guid[i] != log_ptr->log_page_guid[i])	{
+				fprintf(stderr, "ERROR : WDC : Unknown GUID in TCG Config Log Page data\n");
+				int j;
+				fprintf(stderr, "ERROR : WDC : Expected GUID:  0x");
+				for (j = 0; j < WDC_NVME_C7_GUID_LENGTH; j++) {
+					fprintf(stderr, "%x", tcg_config_log_guid[j]);
+				}
+				fprintf(stderr, "\nERROR : WDC : Actual GUID:    0x");
+				for (j = 0; j < WDC_NVME_C7_GUID_LENGTH; j++) {
+					fprintf(stderr, "%x", log_ptr->log_page_guid[j]);
+				}
+				fprintf(stderr, "\n");
+
+				ret = -1;
+				break;
+			}
+		}
+	}
+
+	*data = (__u8 *)log_ptr;
+
+	return ret;
+}
 
 static void wdc_print_hw_rev_log_normal(void *data)
 {
@@ -6017,6 +6108,13 @@ static void wdc_print_hw_rev_log_normal(void *data)
 		printf("%02x", log_data->hw_rev_sn[i]);
 	}
 	printf("\n");
+	printf("  Country of Origin          	: 0x");
+	for (i = 0; i < 32; i++) {
+		if ((i > 1) & !(i % 8))
+			printf(" 0x");
+		printf("%02x", log_data->hw_rev_coo[i]);
+	}
+	printf("\n");
 
 	printf("  Log Page Version			: %d\n", log_data->hw_rev_version);
 	printf("  Log page GUID				: 0x");
@@ -6150,12 +6248,90 @@ static void wdc_print_hw_rev_log_json(void *data)
 			le64_to_cpu(*(uint64_t *)&log_data->hw_rev_sn[16]), le64_to_cpu(*(uint64_t *)&log_data->hw_rev_sn[24]));
 	json_object_add_value_string(root, "Serial Number", json_data);
 
+	memset((void*)json_data, 0, 80);
+	sprintf((char*)json_data, "0x%"PRIx64"%"PRIx64"%"PRIx64"%"PRIx64"",
+			le64_to_cpu(*(uint64_t *)&log_data->hw_rev_coo[0]), le64_to_cpu(*(uint64_t *)&log_data->hw_rev_coo[8]),
+			le64_to_cpu(*(uint64_t *)&log_data->hw_rev_coo[16]), le64_to_cpu(*(uint64_t *)&log_data->hw_rev_coo[24]));
+	json_object_add_value_string(root, "Country of Origin", json_data);
+
 	json_object_add_value_uint(root, "Log Page Version",
 			le16_to_cpu(log_data->hw_rev_version));
 
 	memset((void *)json_data, 0, 40);
 	sprintf((char *)json_data, "0x%"PRIx64"%"PRIx64"", le64_to_cpu(*(uint64_t *)&log_data->hw_rev_guid[8]),
 		le64_to_cpu(*(uint64_t *)&log_data->hw_rev_guid[0]));
+	json_object_add_value_string(root, "Log Page GUID", json_data);
+
+	json_print_object(root, NULL);
+	printf("\n");
+	json_free_object(root);
+}
+
+static void wdc_print_tcg_config_log_normal(void *data)
+{
+	wdc_nvme_tcg_config_log *log_data = (wdc_nvme_tcg_config_log *)data;
+
+	printf("  TCG Configuration Log:- \n");
+
+	printf("  State             								: 0x%x\n", log_data->state);
+	printf("  Locking SP Activation Count             			: 0x%x\n", log_data->locking_sp_act_count);
+	printf("  TPer Revert Count             		        	: 0x%x\n", log_data->tper_revert_count);
+	printf("  Locking SP Revert Count             		    	: 0x%x\n", log_data->locking_sp_revert_count);
+	printf("  Number of Locking Objects             			: 0x%x\n", log_data->num_locking_obj);
+	printf("  Number of Single User Mode Locking Objects       	: 0x%x\n", log_data->num_sum_locking_obj);
+	printf("  Number of Range Provisioned Locking Objects      	: 0x%x\n", log_data->num_rp_locking_obj);
+	printf("  Number of Namespace Provisioned Locking Objects  	: 0x%x\n", log_data->num_np_locking_obj);
+	printf("  Number of Read Locked Locking Objects  			: 0x%x\n", log_data->num_rl_locking_obj);
+	printf("  Number of Write Unlocked Locking Objects  		: 0x%x\n", log_data->num_wl_locking_obj);
+	printf("  Number of Read Locked Locking Objects  			: 0x%x\n", log_data->num_ru_locking_obj);
+	printf("  Number of Write Unlocked Locking Objects  		: 0x%x\n", log_data->num_wu_locking_obj);
+	printf("  SID Authentication Try Count  					: 0x%x\n", log_data->sid_auth_try_count);
+	printf("  SID Authentication Try Limit  					: 0x%x\n", log_data->sid_auth_try_limit);
+	printf("  Programmatic TCG_Reset Count  					: 0x%x\n", log_data->prgm_tcg_reset_count);
+	printf("  Programmatic Reset Lock Count  					: 0x%x\n", log_data->prgm_reset_lock_count);
+	printf("  TCG Error Count  									: 0x%x\n", log_data->tcg_error_count);
+
+	printf("  Log Page Version        	: %d\n",
+			log_data->log_page_version);
+	printf("  Log page GUID				: 0x");
+	printf("%"PRIx64"%"PRIx64"\n",le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
+			le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
+	printf("\n");
+}
+
+static void wdc_print_tcg_config_log_json(void *data)
+{
+	wdc_nvme_tcg_config_log *log_data = (wdc_nvme_tcg_config_log *)data;
+	struct json_object *root;
+	char json_data[80];
+
+	root = json_create_object();
+	json_object_add_value_uint(root, "State", log_data->state);
+
+	json_object_add_value_uint(root, "Locking SP Activation Count", log_data->locking_sp_act_count);
+	json_object_add_value_uint(root, "TPer Revert Count", log_data->tper_revert_count);
+	json_object_add_value_uint(root, "Locking SP Revert Count", log_data->locking_sp_revert_count);
+	json_object_add_value_uint(root, "Number of Locking Objects", log_data->num_locking_obj);
+	json_object_add_value_uint(root, "Number of Single User Mode Locking Objects", log_data->num_sum_locking_obj);
+	json_object_add_value_uint(root, "Number of Range Provisioned Locking Objects", log_data->num_rp_locking_obj);
+	json_object_add_value_uint(root, "Number of Namespace Provisioned Locking Objects", log_data->num_np_locking_obj);
+	json_object_add_value_uint(root, "Number of Read Locked Locking Objects", log_data->num_rl_locking_obj);
+	json_object_add_value_uint(root, "Number of Write Locked Locking Objects", log_data->num_wl_locking_obj);
+	json_object_add_value_uint(root, "Number of Read Unlocked Locking Objects", log_data->num_ru_locking_obj);
+	json_object_add_value_uint(root, "Number of Write Unlocked Locking Objects", log_data->num_wu_locking_obj);
+
+	json_object_add_value_uint(root, "SID Authentication Try Count", log_data->sid_auth_try_count);
+	json_object_add_value_uint(root, "SID Authentication Try Limit", log_data->sid_auth_try_limit);
+	json_object_add_value_uint(root, "Programmatic TCG_Reset Count", log_data->prgm_tcg_reset_count);
+	json_object_add_value_uint(root, "Programmatic Reset Lock Count", log_data->prgm_reset_lock_count);
+	json_object_add_value_uint(root, "TCG Error Count", log_data->tcg_error_count);
+
+	json_object_add_value_uint(root, "Log Page Version",
+			le16_to_cpu(log_data->log_page_version));
+
+	memset((void*)json_data, 0, 40);
+	sprintf((char*)json_data, "0x%"PRIx64"%"PRIx64"", le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
+		le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
 	json_object_add_value_string(root, "Log Page GUID", json_data);
 
 	json_print_object(root, NULL);
@@ -8178,6 +8354,88 @@ static int wdc_vs_hw_rev_log(int argc, char **argv, struct command *command,
 		}
 	} else {
 		fprintf(stderr, "ERROR: WDC: Unable to read Hardware Revision Log Page data\n");
+		ret = -1;
+	}
+
+free_buf:
+	if (data)
+		free(data);
+
+out:
+	nvme_free_tree(r);
+	dev_close(dev);
+	return ret;
+}
+
+static int wdc_get_tcg_config_log(int argc, char **argv, struct command *command,
+		struct plugin *plugin)
+{
+	const char *desc = "Retrieve TCG Configuration Log Page";
+	const char *namespace_id = "desired namespace id";
+	__u64 capabilities = 0;
+	struct nvme_dev *dev;
+	int ret, fmt = -1;
+	__u8 *data = NULL;
+	nvme_root_t r;
+
+	struct config {
+		char *output_format;
+		__u32 namespace_id;
+	};
+
+	struct config cfg = {
+		.output_format = "normal",
+		.namespace_id = NVME_NSID_ALL,
+	};
+
+	OPT_ARGS(opts) = {
+		OPT_FMT("output-format",      'o', &cfg.output_format,    "Output Format: normal|json"),
+		OPT_UINT("namespace-id",      'n', &cfg.namespace_id,     namespace_id),
+		OPT_END()
+	};
+
+	ret = parse_and_open(&dev, argc, argv, desc, opts);
+	if (ret)
+		return ret;
+
+	r = nvme_scan(NULL);
+
+	capabilities = wdc_get_drive_capabilities(r, dev);
+
+	if ((capabilities & WDC_DRIVE_CAP_TCG_CONFIG_LOG_PAGE) == 0) {
+		fprintf(stderr, "ERROR : WDC: unsupported device for this command\n");
+		ret = -1;
+		goto out;
+	}
+
+	ret = nvme_get_tcg_config_log(dev_fd(dev), &data, 0, cfg.namespace_id);
+
+	if (strcmp(cfg.output_format, "json"))
+		nvme_show_status(ret);
+
+	if (ret == 0) {
+		fmt = validate_output_format(cfg.output_format);
+		if (fmt < 0) {
+			fprintf(stderr, "ERROR : WDC %s: invalid output format\n", __func__);
+			ret = fmt;
+			goto free_buf;
+		}
+
+		if (!data) {
+			fprintf(stderr, "ERROR : WDC : Invalid buffer to read TCG Configuration log page\n");
+			ret = -1;
+			goto out;
+		}
+		switch (fmt) {
+		case NORMAL:
+			wdc_print_tcg_config_log_normal(data);
+			break;
+		case JSON:
+			wdc_print_tcg_config_log_json(data);
+			break;
+		}
+	} else {
+		fprintf(stderr, "ERROR : WDC : Unable to read TCG Configuration log page\n");
 		ret = -1;
 	}
 
