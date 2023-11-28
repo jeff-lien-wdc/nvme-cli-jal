@@ -9036,29 +9036,35 @@ static int wdc_vs_telemetry_controller_option(int argc, char **argv, struct comm
 	char *disable = "Disable controller option of the telemetry log page.";
 	char *enable = "Enable controller option of the telemetry log page.";
 	char *status = "Displays the current state of the controller initiated log page.";
+	char *uuidIdx = "Specify the UUID Index of the feature ID.";
 	__u64 capabilities = 0;
 	struct nvme_dev *dev;
 	nvme_root_t r;
 	__u32 result;
 	int ret = -1;
 
+	struct nvme_set_features_args setargs;
+	struct nvme_get_features_args getargs;
 
 	struct config {
 		bool disable;
 		bool enable;
 		bool status;
+		int  uuidIdx;
 	};
 
 	struct config cfg = {
 		.disable = false,
 		.enable = false,
 		.status = false,
+		.uuidIdx = 0,
 	};
 
 	OPT_ARGS(opts) = {
 		OPT_FLAG("disable",       'd', &cfg.disable,   disable),
 		OPT_FLAG("enable",        'e', &cfg.enable,    enable),
 		OPT_FLAG("status",        's', &cfg.status,    status),
+		OPT_UINT("uuid Index",    'u', &cfg.uuidIdx,   uuidIdx),
 		OPT_END()
 	};
 
@@ -9082,22 +9088,44 @@ static int wdc_vs_telemetry_controller_option(int argc, char **argv, struct comm
 		goto out;
 	}
 
-	if (cfg.disable) {
-		ret = nvme_set_features_simple(dev_fd(dev),
-					       WDC_VU_DISABLE_CNTLR_TELEMETRY_OPTION_FEATURE_ID,
-					       0, 1, false, &result);
+	setargs.result = &result;
+	setargs.data = NULL;
+	setargs.args_size = sizeof(setargs);
+	setargs.fd = dev_fd(dev);
+	setargs.timeout = NVME_DEFAULT_IOCTL_TIMEOUT;
+	setargs.nsid = 0;
+	setargs.cdw12 = 0;
+	setargs.cdw13 = 0;
+	setargs.cdw15 = 0;
+	setargs.data_len = 0;
+	setargs.save = false;
+	setargs.uuidx = cfg.uuidIdx;
+	setargs.fid = WDC_VU_DISABLE_CNTLR_TELEMETRY_OPTION_FEATURE_ID;
 
+	if (cfg.disable) {
+		setargs.cdw11 = 1;
+		ret = nvme_set_features(&setargs);
 		wdc_clear_reason_id(dev);
-	} else {
+	}
+	else {
 		if (cfg.enable) {
-			ret = nvme_set_features_simple(dev_fd(dev),
-						       WDC_VU_DISABLE_CNTLR_TELEMETRY_OPTION_FEATURE_ID,
-						       0, 0, false, &result);
-		} else if (cfg.status) {
-			ret = nvme_get_features_simple(dev_fd(dev),
-						       WDC_VU_DISABLE_CNTLR_TELEMETRY_OPTION_FEATURE_ID,
-						       0, &result);
-			if (!ret) {
+			setargs.cdw11 = 0;
+			ret = nvme_set_features(&setargs
+		}
+		else if (cfg.status) {
+			getargs.result = &result;
+			getargs.data = NULL;
+			getargs.args_size = sizeof(getargs);
+			getargs.fd = dev_fd(dev);
+			getargs.timeout = NVME_DEFAULT_IOCTL_TIMEOUT;
+			getargs.nsid = 0;
+			getargs.sel = NVME_GET_FEATURES_SEL_CURRENT;
+			getargs.cdw11 = 0;
+			getargs.data_len = 0;
+			getargs.fid = WDC_VU_DISABLE_CNTLR_TELEMETRY_OPTION_FEATURE_ID;
+			getargs.uuidx = cfg.uuidIdx;
+			ret = nvme_get_features(&getargs);
+			if (ret == 0) {
 				if (result)
 					fprintf(stderr, "Controller Option Telemetry Log Page State: Disabled\n");
 				else
