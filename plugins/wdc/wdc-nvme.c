@@ -8112,7 +8112,7 @@ static int wdc_vs_smart_add_log(int argc, char **argv, struct command *command,
 			struct ocp_cloud_smart_log log;
 			char buf[2 * sizeof(log.log_page_guid) + 3];
 
-			ret = validate_output_format(output_format, &fmt);
+			ret = validate_output_format(cfg.output_format, &fmt);
 			if (ret < 0) {
 				fprintf(stderr, "Invalid output format: %s\n", cfg.output_format);
 				goto out;
