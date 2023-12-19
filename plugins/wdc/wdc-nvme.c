@@ -147,8 +147,9 @@
 #define WDC_DRIVE_CAP_OCP_C1_LOG_PAGE		0x0000002000000000
 #define WDC_DRIVE_CAP_OCP_C4_LOG_PAGE		0x0000004000000000
 #define WDC_DRIVE_CAP_OCP_C5_LOG_PAGE		0x0000008000000000
-#define WDC_DRIVE_CAP_DEVICE_WAF            0x0000010000000000
-#define WDC_DRIVE_CAP_TCG_CONFIG_LOG_PAGE   0x0000020000000000
+#define WDC_DRIVE_CAP_DEVICE_WAF			0x0000010000000000
+#define WDC_DRIVE_CAP_SET_LATENCY_MONITOR	0x0000020000000000
+#define WDC_DRIVE_CAP_TCG_CONFIG_LOG_PAGE	0x0000040000000000
 
 #define WDC_DRIVE_CAP_SMART_LOG_MASK	(WDC_DRIVE_CAP_C0_LOG_PAGE | WDC_DRIVE_CAP_C1_LOG_PAGE | \
                                          WDC_DRIVE_CAP_CA_LOG_PAGE | WDC_DRIVE_CAP_D0_LOG_PAGE)
@@ -794,9 +795,9 @@ static __u8 hw_rev_log_guid[WDC_NVME_C6_GUID_LENGTH] = {
 	0xAB, 0x89, 0x05, 0xBA, 0x8B, 0xE2, 0xBF, 0x3C
 };
 
-#define WDC_NVME_C7_GUID_LENGTH            16
-#define WDC_NVME_GET_TCG_CONFIG_LOG_ID     0xc7
-#define WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN   512
+#define WDC_NVME_GUID_LENGTH				16
+#define WDC_NVME_TCG_CONFIG_LOG_ID			0xc7
+#define WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN	512
 
 typedef struct __attribute__((__packed__)) wdc_nvme_tcg_config_log
 {
@@ -821,19 +822,17 @@ typedef struct __attribute__((__packed__)) wdc_nvme_tcg_config_log
 	__u32 tcg_error_count;         /*  32 TCG Error Count                */
 	__u8  rsrvd3[458];             /*  36 Reserved                       */
 	__u16 log_page_version;        /* 494 Log Page Version               */
-	__u8  log_page_guid[16];         /* 496 Log Page GUID                  */
+	__u8  log_page_guid[16];       /* 496 Log Page GUID                  */
 } wdc_nvme_tcg_config_log;
 
-static __u8 tcg_config_log_guid[WDC_NVME_C7_GUID_LENGTH] = { 0x06, 0x40, 0x24, 0xBD, 0x7E, 0xE0, 0xE6, 0x83,
+static __u8 tcg_config_log_guid[WDC_NVME_GUID_LENGTH] = { 0x06, 0x40, 0x24, 0xBD, 0x7E, 0xE0, 0xE6, 0x83,
 		0xC0, 0x47, 0x54, 0xFA, 0x9D, 0x2A, 0xE0, 0x54 };
 
-typedef struct __attribute__((__packed__)) _WDC_DE_VU_FILE_META_DATA
-{
-    __u8 fileName[WDC_DE_FILE_NAME_SIZE];
-    __u16 fileID;
-    __u64 fileSize;
-} WDC_DE_VU_FILE_META_DATA, *PWDC_DE_VU_FILE_META_DATA;
-
+struct __packed WDC_DE_VU_FILE_META_DATA {
+	__u8 fileName[WDC_DE_FILE_NAME_SIZE];
+	__u16 fileID;
+	__u64 fileSize;
+};
 struct WDC_DRIVE_ESSENTIALS {
 	struct __packed WDC_DE_VU_FILE_META_DATA metaData;
 	enum WDC_DRIVE_ESSENTIAL_TYPE essentialType;
@@ -1603,6 +1602,33 @@ static bool wdc_enc_check_model(struct nvme_dev *dev)
 		fprintf(stderr, "ERROR: WDC: unsupported WDC enclosure, Model = %s\n", model);
 
 	return supported;
+}
+
+static bool wdc_check_guid(__u8 *expected_guid, __u8 *actual_guid) {
+	int i;
+	bool match = true;
+
+	/* Verify GUID matches */
+	for (i = 0; i < WDC_NVME_GUID_LENGTH; i++) {
+		if (expected_guid[i] != actual_guid[i])	{
+			fprintf(stderr, "ERROR : WDC : Unknown Log Page GUID\n");
+			int j;
+			fprintf(stderr, "ERROR : WDC : Expected GUID:  0x");
+			for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
+				fprintf(stderr, "%x", expected_guid[j]);
+			}
+			fprintf(stderr, "\nERROR : WDC : Actual GUID:    0x");
+			for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
+				fprintf(stderr, "%x", actual_guid[j]);
+			}
+			fprintf(stderr, "\n");
+
+			match = false;
+			break;
+		}
+	}
+
+	return match;
 }
 
 static __u64 wdc_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
@@ -5891,64 +5917,6 @@ static int nvme_get_hw_rev_log(int fd, __u8 **data, int uuid_index, __u32 namesp
 	return ret;
 }
 
-static int nvme_get_tcg_config_log(int fd, __u8 **data, int uuid_index, __u32 namespace_id)
-{
-	int ret, i;
-	wdc_nvme_tcg_config_log *log_ptr = NULL;
-
-	if ((log_ptr = (wdc_nvme_tcg_config_log *)malloc(sizeof (__u8) * WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN)) == NULL) {
-		fprintf(stderr, "ERROR : WDC : malloc : %s\n", strerror(errno));
-		return -1;
-	}
-
-	/* Get the 0xC7 log data */
-	struct nvme_get_log_args args = {
-		.args_size	= sizeof(args),
-		.fd			= fd,
-		.lid		= WDC_NVME_GET_TCG_CONFIG_LOG_ID,
-		.nsid		= namespace_id,
-		.lpo		= 0,
-		.lsp		= NVME_LOG_LSP_NONE,
-		.lsi		= 0,
-		.rae		= false,
-		.uuidx		= uuid_index,
-		.csi		= NVME_CSI_NVM,
-		.ot			= false,
-		.len		= WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN,
-		.log		= log_ptr,
-		.timeout	= NVME_DEFAULT_IOCTL_TIMEOUT,
-		.result		= NULL,
-	};
-	ret = nvme_get_log(&args);
-
-	if (ret == 0) {
-
-		/* Verify GUID matches */
-		for (i = 0; i < WDC_NVME_C7_GUID_LENGTH; i++) {
-			if (tcg_config_log_guid[i] != log_ptr->log_page_guid[i])	{
-				fprintf(stderr, "ERROR : WDC : Unknown GUID in TCG Config Log Page data\n");
-				int j;
-				fprintf(stderr, "ERROR : WDC : Expected GUID:  0x");
-				for (j = 0; j < WDC_NVME_C7_GUID_LENGTH; j++) {
-					fprintf(stderr, "%x", tcg_config_log_guid[j]);
-				}
-				fprintf(stderr, "\nERROR : WDC : Actual GUID:    0x");
-				for (j = 0; j < WDC_NVME_C7_GUID_LENGTH; j++) {
-					fprintf(stderr, "%x", log_ptr->log_page_guid[j]);
-				}
-				fprintf(stderr, "\n");
-
-				ret = -1;
-				break;
-			}
-		}
-	}
-
-	*data = (__u8 *)log_ptr;
-
-	return ret;
-}
-
 static void wdc_print_hw_rev_log_normal(void *data)
 {
 	int i;
@@ -6285,14 +6253,14 @@ static void wdc_print_tcg_config_log_normal(void *data)
 	printf("  Number of Write Unlocked Locking Objects  		: 0x%x\n", log_data->num_wl_locking_obj);
 	printf("  Number of Read Locked Locking Objects  			: 0x%x\n", log_data->num_ru_locking_obj);
 	printf("  Number of Write Unlocked Locking Objects  		: 0x%x\n", log_data->num_wu_locking_obj);
-	printf("  SID Authentication Try Count  					: 0x%x\n", log_data->sid_auth_try_count);
-	printf("  SID Authentication Try Limit  					: 0x%x\n", log_data->sid_auth_try_limit);
-	printf("  Programmatic TCG_Reset Count  					: 0x%x\n", log_data->prgm_tcg_reset_count);
-	printf("  Programmatic Reset Lock Count  					: 0x%x\n", log_data->prgm_reset_lock_count);
-	printf("  TCG Error Count  									: 0x%x\n", log_data->tcg_error_count);
+	printf("  SID Authentication Try Count  					: 0x%x\n", le32_to_cpu(log_data->sid_auth_try_count));
+	printf("  SID Authentication Try Limit  					: 0x%x\n", le32_to_cpu(log_data->sid_auth_try_limit));
+	printf("  Programmatic TCG_Reset Count  					: 0x%x\n", le32_to_cpu(log_data->prgm_tcg_reset_count));
+	printf("  Programmatic Reset Lock Count  					: 0x%x\n", le32_to_cpu(log_data->prgm_reset_lock_count));
+	printf("  TCG Error Count  									: 0x%x\n", le32_to_cpu(log_data->tcg_error_count));
 
 	printf("  Log Page Version        	: %d\n",
-			log_data->log_page_version);
+			le16_to_cpu(log_data->log_page_version));
 	printf("  Log page GUID				: 0x");
 	printf("%"PRIx64"%"PRIx64"\n",le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
 			le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
@@ -6320,11 +6288,11 @@ static void wdc_print_tcg_config_log_json(void *data)
 	json_object_add_value_uint(root, "Number of Read Unlocked Locking Objects", log_data->num_ru_locking_obj);
 	json_object_add_value_uint(root, "Number of Write Unlocked Locking Objects", log_data->num_wu_locking_obj);
 
-	json_object_add_value_uint(root, "SID Authentication Try Count", log_data->sid_auth_try_count);
-	json_object_add_value_uint(root, "SID Authentication Try Limit", log_data->sid_auth_try_limit);
-	json_object_add_value_uint(root, "Programmatic TCG_Reset Count", log_data->prgm_tcg_reset_count);
-	json_object_add_value_uint(root, "Programmatic Reset Lock Count", log_data->prgm_reset_lock_count);
-	json_object_add_value_uint(root, "TCG Error Count", log_data->tcg_error_count);
+	json_object_add_value_uint(root, "SID Authentication Try Count", le32_to_cpu(log_data->sid_auth_try_count));
+	json_object_add_value_uint(root, "SID Authentication Try Limit", le32_to_cpu(log_data->sid_auth_try_limit));
+	json_object_add_value_uint(root, "Programmatic TCG_Reset Count", le32_to_cpu(log_data->prgm_tcg_reset_count));
+	json_object_add_value_uint(root, "Programmatic Reset Lock Count", le32_to_cpu(log_data->prgm_reset_lock_count));
+	json_object_add_value_uint(root, "TCG Error Count", le32_to_cpu(log_data->tcg_error_count));
 
 	json_object_add_value_uint(root, "Log Page Version",
 			le16_to_cpu(log_data->log_page_version));
@@ -8375,22 +8343,25 @@ static int wdc_get_tcg_config_log(int argc, char **argv, struct command *command
 	__u64 capabilities = 0;
 	struct nvme_dev *dev;
 	int ret, fmt = -1;
-	__u8 *data = NULL;
+	wdc_nvme_tcg_config_log *log_ptr = NULL;
 	nvme_root_t r;
 
 	struct config {
 		char *output_format;
 		__u32 namespace_id;
+		bool rae;
 	};
 
 	struct config cfg = {
 		.output_format = "normal",
 		.namespace_id = NVME_NSID_ALL,
+		.rae = false,
 	};
 
 	OPT_ARGS(opts) = {
 		OPT_FMT("output-format",      'o', &cfg.output_format,    "Output Format: normal|json"),
 		OPT_UINT("namespace-id",      'n', &cfg.namespace_id,     namespace_id),
+		OPT_FLAG("rae",               'r', &cfg.rae,              "Retain Asynch Event"),
 		OPT_END()
 	};
 
@@ -8408,12 +8379,25 @@ static int wdc_get_tcg_config_log(int argc, char **argv, struct command *command
 		goto out;
 	}
 
-	ret = nvme_get_tcg_config_log(dev_fd(dev), &data, 0, cfg.namespace_id);
+	if ((log_ptr = (wdc_nvme_tcg_config_log *)malloc(sizeof (__u8) * WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN)) == NULL) {
+		fprintf(stderr, "ERROR : WDC : malloc : %s\n", strerror(errno));
+		ret = -1;
+		goto out;
+	}
+
+	ret = nvme_get_nsid_log(dev_fd(dev), cfg.rae, WDC_NVME_TCG_CONFIG_LOG_ID,
+			cfg.namespace_id, WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN, log_ptr);
 
 	if (strcmp(cfg.output_format, "json"))
 		nvme_show_status(ret);
 
 	if (ret == 0) {
+		if (!wdc_check_guid((__u8 *)tcg_config_log_guid, (__u8 *)&log_ptr->log_page_guid)) {
+			fprintf(stderr, "ERROR : WDC : Invalid TCG Config Log Page GUID\n");
+			ret = -1;
+			goto free_buf;
+		}
+
 		fmt = validate_output_format(cfg.output_format);
 		if (fmt < 0) {
 			fprintf(stderr, "ERROR : WDC %s: invalid output format\n", __func__);
@@ -8421,17 +8405,12 @@ static int wdc_get_tcg_config_log(int argc, char **argv, struct command *command
 			goto free_buf;
 		}
 
-		if (!data) {
-			fprintf(stderr, "ERROR : WDC : Invalid buffer to read TCG Configuration log page\n");
-			ret = -1;
-			goto out;
-		}
 		switch (fmt) {
 		case NORMAL:
-			wdc_print_tcg_config_log_normal(data);
+			wdc_print_tcg_config_log_normal(log_ptr);
 			break;
 		case JSON:
-			wdc_print_tcg_config_log_json(data);
+			wdc_print_tcg_config_log_json(log_ptr);
 			break;
 		}
 	} else {
@@ -8440,8 +8419,8 @@ static int wdc_get_tcg_config_log(int argc, char **argv, struct command *command
 	}
 
 free_buf:
-	if (data)
-		free(data);
+	if (log_ptr)
+		free(log_ptr);
 
 out:
 	nvme_free_tree(r);
