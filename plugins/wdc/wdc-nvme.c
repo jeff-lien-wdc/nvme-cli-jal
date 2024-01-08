@@ -1658,11 +1658,11 @@ static bool wdc_check_guid(__u8 *expected_guid, __u8 *actual_guid) {
 			int j;
 			fprintf(stderr, "ERROR : WDC : Expected GUID:  0x");
 			for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
-				fprintf(stderr, "%x", expected_guid[j]);
+				fprintf(stderr, "%02x", expected_guid[j]);
 			}
 			fprintf(stderr, "\nERROR : WDC : Actual GUID:    0x");
 			for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
-				fprintf(stderr, "%x", actual_guid[j]);
+				fprintf(stderr, "%02x", actual_guid[j]);
 			}
 			fprintf(stderr, "\n");
 
@@ -6456,27 +6456,27 @@ static void wdc_print_tcg_config_log_normal(void *data)
 
 	printf("  TCG Configuration Log:- \n");
 
-	printf("  State             								: 0x%x\n", log_data->state);
-	printf("  Locking SP Activation Count             			: 0x%x\n", log_data->locking_sp_act_count);
-	printf("  TPer Revert Count             		        	: 0x%x\n", log_data->tper_revert_count);
-	printf("  Locking SP Revert Count             		    	: 0x%x\n", log_data->locking_sp_revert_count);
-	printf("  Number of Locking Objects             			: 0x%x\n", log_data->num_locking_obj);
-	printf("  Number of Single User Mode Locking Objects       	: 0x%x\n", log_data->num_sum_locking_obj);
-	printf("  Number of Range Provisioned Locking Objects      	: 0x%x\n", log_data->num_rp_locking_obj);
-	printf("  Number of Namespace Provisioned Locking Objects  	: 0x%x\n", log_data->num_np_locking_obj);
-	printf("  Number of Read Locked Locking Objects  			: 0x%x\n", log_data->num_rl_locking_obj);
-	printf("  Number of Write Unlocked Locking Objects  		: 0x%x\n", log_data->num_wl_locking_obj);
-	printf("  Number of Read Locked Locking Objects  			: 0x%x\n", log_data->num_ru_locking_obj);
-	printf("  Number of Write Unlocked Locking Objects  		: 0x%x\n", log_data->num_wu_locking_obj);
-	printf("  SID Authentication Try Count  					: 0x%x\n", le32_to_cpu(log_data->sid_auth_try_count));
-	printf("  SID Authentication Try Limit  					: 0x%x\n", le32_to_cpu(log_data->sid_auth_try_limit));
-	printf("  Programmatic TCG_Reset Count  					: 0x%x\n", le32_to_cpu(log_data->prgm_tcg_reset_count));
-	printf("  Programmatic Reset Lock Count  					: 0x%x\n", le32_to_cpu(log_data->prgm_reset_lock_count));
-	printf("  TCG Error Count  									: 0x%x\n", le32_to_cpu(log_data->tcg_error_count));
+	printf("  State                                             : 0x%x\n", log_data->state);
+	printf("  Locking SP Activation Count                       : 0x%x\n", log_data->locking_sp_act_count);
+	printf("  TPer Revert Count                                 : 0x%x\n", log_data->tper_revert_count);
+	printf("  Locking SP Revert Count                           : 0x%x\n", log_data->locking_sp_revert_count);
+	printf("  Number of Locking Objects                         : 0x%x\n", log_data->num_locking_obj);
+	printf("  Number of Single User Mode Locking Objects        : 0x%x\n", log_data->num_sum_locking_obj);
+	printf("  Number of Range Provisioned Locking Objects       : 0x%x\n", log_data->num_rp_locking_obj);
+	printf("  Number of Namespace Provisioned Locking Objects   : 0x%x\n", log_data->num_np_locking_obj);
+	printf("  Number of Read Locked Locking Objects             : 0x%x\n", log_data->num_rl_locking_obj);
+	printf("  Number of Write Unlocked Locking Objects          : 0x%x\n", log_data->num_wl_locking_obj);
+	printf("  Number of Read Locked Locking Objects             : 0x%x\n", log_data->num_ru_locking_obj);
+	printf("  Number of Write Unlocked Locking Objects          : 0x%x\n", log_data->num_wu_locking_obj);
+	printf("  SID Authentication Try Count                      : 0x%x\n", le32_to_cpu(log_data->sid_auth_try_count));
+	printf("  SID Authentication Try Limit                      : 0x%x\n", le32_to_cpu(log_data->sid_auth_try_limit));
+	printf("  Programmatic TCG_Reset Count                      : 0x%x\n", le32_to_cpu(log_data->prgm_tcg_reset_count));
+	printf("  Programmatic Reset Lock Count                     : 0x%x\n", le32_to_cpu(log_data->prgm_reset_lock_count));
+	printf("  TCG Error Count                                   : 0x%x\n", le32_to_cpu(log_data->tcg_error_count));
 
-	printf("  Log Page Version        	: %d\n",
+	printf("  Log Page Version          : %d\n",
 			le16_to_cpu(log_data->log_page_version));
-	printf("  Log page GUID				: 0x");
+	printf("  Log page GUID             : 0x");
 	printf("%"PRIx64"%"PRIx64"\n",le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
 			le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
 	printf("\n");
