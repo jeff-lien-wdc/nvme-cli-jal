@@ -5,11 +5,7 @@
 #if !defined(WDC_NVME) || defined(CMD_HEADER_MULTI_READ)
 #define WDC_NVME
 
-<<<<<<< HEAD
 #define WDC_PLUGIN_VERSION   "2.7.0"
-=======
-#define WDC_PLUGIN_VERSION   "2.3.6"
->>>>>>> 64de2462b09846c1f1b9e196b2ecd7e8c227e094
 #include "cmd.h"
 
 PLUGIN(NAME("wdc", "Western Digital vendor specific extensions", WDC_PLUGIN_VERSION),
