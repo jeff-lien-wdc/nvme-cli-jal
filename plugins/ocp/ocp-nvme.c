@@ -27,6 +27,7 @@
 #include "ocp-smart-extended-log.h"
 #include "ocp-clear-features.h"
 #include "ocp-fw-activation-history.h"
+#include "ocp-telemetry-decode.h"
 
 #define CREATE_CMD
 #include "ocp-nvme.h"
@@ -805,57 +806,6 @@ static int eol_plp_failure_mode(int argc, char **argv, struct command *cmd,
 ///////////////////////////////////////////////////////////////////////////////
 /// Telemetry Log
 
-#define TELEMETRY_HEADER_SIZE 512
-#define TELEMETRY_BYTE_PER_BLOCK 512
-#define TELEMETRY_TRANSFER_SIZE 1024
-#define FILE_NAME_SIZE 2048
-
-enum TELEMETRY_TYPE {
-	TELEMETRY_TYPE_NONE       = 0,
-	TELEMETRY_TYPE_HOST       = 7,
-	TELEMETRY_TYPE_CONTROLLER = 8,
-	TELEMETRY_TYPE_HOST_0     = 9,
-	TELEMETRY_TYPE_HOST_1     = 10,
-};
-
-struct telemetry_initiated_log {
-	__u8  LogIdentifier;
-	__u8  Reserved1[4];
-	__u8  IEEE[3];
-	__le16 DataArea1LastBlock;
-	__le16 DataArea2LastBlock;
-	__le16 DataArea3LastBlock;
-	__u8  Reserved2[368];
-	__u8  DataAvailable;
-	__u8  DataGenerationNumber;
-	__u8  ReasonIdentifier[128];
-};
-
-struct telemetry_data_area_1 {
-	__le16 major_version;
-	__le16 minor_version;
-	__u8  reserved1[4];
-	__le64	timestamp;
-	__u8    log_page_guid[16];
-	__u8    no_of_tps_supp;
-	__u8    tps;
-	__u8  reserved2[6];
-	__le16  sls;
-	__u8  reserved3[8];
-	__le16 fw_revision;
-	__u8  reserved4[32];
-	__le16  da1_stat_start;
-	__le16  da1_stat_size;
-	__le16  da2_stat_start;
-	__le16  da2_stat_size;
-	__u8  reserved5[32];
-	__u8    event_fifo_da[16];
-	__le64	event_fifo_start[16];
-	__le64	event_fifo_size[16];
-	__u8  reserved6[80];
-	__u8  smart_health_info[512];
-	__u8  smart_health_info_extended[512];
-};
 static void get_serial_number(struct nvme_id_ctrl *ctrl, char *sn)
 {
 	int i;
@@ -895,11 +845,15 @@ static void print_telemetry_header(struct telemetry_initiated_log *logheader,
 {
 	if (logheader) {
 		unsigned int i = 0, j = 0;
+		__u8 dataGenNum;
 
-		if (tele_type == TELEMETRY_TYPE_HOST)
+		if (tele_type == TELEMETRY_TYPE_HOST) {
 			printf("============ Telemetry Host Header ============\n");
-		else
+			dataGenNum = logheader->DataHostGenerationNumber;
+		} else {
 			printf("========= Telemetry Controller Header =========\n");
+			dataGenNum = logheader->DataCtlrGenerationNumber;
+		}
 
 		printf("Log Identifier         : 0x%02X\n", logheader->LogIdentifier);
 		printf("IEEE                   : 0x%02X%02X%02X\n",
@@ -910,8 +864,10 @@ static void print_telemetry_header(struct telemetry_initiated_log *logheader,
 			le16_to_cpu(logheader->DataArea2LastBlock));
 		printf("Data Area 3 Last Block : 0x%04X\n",
 			le16_to_cpu(logheader->DataArea3LastBlock));
-		printf("Data Available         : 0x%02X\n",	logheader->DataAvailable);
-		printf("Data Generation Number : 0x%02X\n",	logheader->DataGenerationNumber);
+		printf("Data Available         : 0x%02X\n",
+			logheader->CtlrDataAvailable);
+		printf("Data Generation Number : 0x%02X\n",
+			dataGenNum);
 		printf("Reason Identifier      :\n");
 
 		for (i = 0; i < 8; i++) {
@@ -922,6 +878,7 @@ static void print_telemetry_header(struct telemetry_initiated_log *logheader,
 		printf("===============================================\n\n");
 	}
 }
+
 static int get_telemetry_data(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
 							  __u32 data_len, void *data, __u8 nLSP, __u8 nRAE,
 							  __u64 offset)
@@ -951,116 +908,108 @@ static void print_telemetry_data_area_1(struct telemetry_data_area_1 *da1,
 			printf("============ Telemetry Host Data area 1 ============\n");
 		else
 			printf("========= Telemetry Controller Data area 1 =========\n");
-		printf("Major Version         : 0x%x\n", le16_to_cpu(da1->major_version));
-		printf("Minor Version         : 0x%x\n", le16_to_cpu(da1->minor_version));
-		for (i = 0; i < 4; i++)
-			printf("reserved1         : 0x%x\n", da1->reserved1[i]);
+		printf("Major Version     : 0x%x\n", le16_to_cpu(da1->major_version));
+		printf("Minor Version     : 0x%x\n", le16_to_cpu(da1->minor_version));
 		printf("Timestamp         : %"PRIu64"\n", le64_to_cpu(da1->timestamp));
-		for (i = 15; i >= 0; i--)
-			printf("%x", da1->log_page_guid[i]);
-		printf("Number Telemetry Profiles Supported         : 0x%x\n", da1->no_of_tps_supp);
-		printf("Telemetry Profile Selected (TPS)         : 0x%x\n", da1->tps);
-		for (i = 0; i < 6; i++)
-			printf("reserved2         : 0x%x\n", da1->reserved2[i]);
-		printf("Telemetry String Log Size (SLS)         : 0x%x\n", le16_to_cpu(da1->sls));
-		for (i = 0; i < 8; i++)
-			printf("reserved3         : 0x%x\n", da1->reserved3[i]);
-		printf("Firmware Revision         : 0x%x\n", le16_to_cpu(da1->fw_revision));
-		for (i = 0; i < 32; i++)
-			printf("reserved4         : 0x%x\n", da1->reserved4[i]);
-		printf("Data Area 1 Statistic Start         : 0x%x\n", le16_to_cpu(da1->da1_stat_start));
-		printf("Data Area 1 Statistic Size         : 0x%x\n", le16_to_cpu(da1->da1_stat_size));
-		printf("Data Area 2 Statistic Start         : 0x%x\n", le16_to_cpu(da1->da2_stat_start));
-		printf("Data Area 2 Statistic Size         : 0x%x\n", le16_to_cpu(da1->da2_stat_size));
-		for (i = 0; i < 32; i++)
-			printf("reserved5         : 0x%x\n", da1->reserved5[i]);
-		for (i = 0; i < 17; i++){
-			printf("Event FIFO %d Data Area         : 0x%x\n", i, da1->event_fifo_da[i]);
-			printf("Event FIFO %d Start         : %"PRIu64"\n", i, le64_to_cpu(da1->event_fifo_start[i]));
-			printf("Event FIFO %d Size         : %"PRIu64"\n", i, le64_to_cpu(da1->event_fifo_size[i]));
+		printf("GUID              : ");
+		for (i = 0; i <= 15; i++)
+			printf("0x%02x ", da1->log_page_guid[15-i]);
+		printf("\n");
+		printf("Number Telemetry Profiles Supported   : 0x%x\n",
+				da1->no_of_tps_supp);
+		printf("Telemetry Profile Selected (TPS)      : 0x%x\n",
+				da1->tps);
+		printf("Telemetry String Log Size (SLS)       : 0x%lx\n",
+				le64_to_cpu(da1->sls));
+		printf("Firmware Revision                     : 0x%lx\n",
+				le64_to_cpu(da1->fw_revision));
+		printf("Data Area 1 Statistic Start           : 0x%lx\n",
+				le64_to_cpu(da1->da1_stat_start));
+		printf("Data Area 1 Statistic Size            : 0x%lx\n",
+				le64_to_cpu(da1->da1_stat_size));
+		printf("Data Area 2 Statistic Start           : 0x%lx\n",
+				le64_to_cpu(da1->da2_stat_start));
+		printf("Data Area 2 Statistic Size            : 0x%lx\n",
+				le64_to_cpu(da1->da2_stat_size));
+		for (i = 0; i < 16; i++) {
+			printf("Event FIFO %d Data Area                : 0x%x\n",
+					i, da1->event_fifo_da[i]);
+			printf("Event FIFO %d Start                    : 0x%lx\n",
+					i, le64_to_cpu(da1->event_fifos[i].start));
+			printf("Event FIFO %d Size                     : 0x%lx\n",
+					i, le64_to_cpu(da1->event_fifos[i].size));
 		}
-		for (i = 0; i < 80; i++)
-			printf("reserved6         : 0x%x\n", da1->reserved6[i]);
+		printf("SMART / Health Information     : \n");
 		for (i = 0; i < 512; i++){
-			printf("SMART / Health Information         : 0x%x\n", da1->smart_health_info[i]);
-			printf("SMART / Health Information Extended         : 0x%x\n", da1->smart_health_info_extended[i]);
+			printf("%x", da1->smart_health_info[i]);
 		}
-		printf("===============================================\n\n");
-	}
-}
-static void print_telemetry_da1_stat(__u8 *da1_stat, int tele_type, __u16 buf_size)
-{
-	if (da1_stat) {
-		unsigned int i = 0;
-		if (tele_type == TELEMETRY_TYPE_HOST)
-			printf("============ Telemetry Host Data area 1 Statistics ============\n");
-		else
-			printf("========= Telemetry Controller Data area 1 Statistics =========\n");
-		while((i + 8) < buf_size) {
-			printf("Statistics Identifier         : 0x%x\n", (da1_stat[i] | da1_stat[i+1] << 8));
-			printf("Statistics info         : 0x%x\n", da1_stat[i+2]);
-			printf("NS info         : 0x%x\n", da1_stat[i+3]);
-			printf("Statistic Data Size         : 0x%x\n", (da1_stat[i+4] | da1_stat[i+5] << 8));
-			printf("Reserved         : 0x%x\n", (da1_stat[i+6] | da1_stat[i+7] << 8));
-			i = 8 + ((da1_stat[i+4] | da1_stat[i+5] << 8) * 4);
+		printf("\n");
+		printf("SMART / Health Information Extended     : \n");
+		for (i = 0; i < 512; i++){
+			printf("%x", da1->smart_health_info_extended[i]);
 		}
-		printf("===============================================\n\n");
-	}
-}
-static void print_telemetry_da1_fifo(__u8 *da1_fifo, int tele_type, __u16 buf_size)
-{
-	if (da1_fifo) {
-		unsigned int i = 0;
-		if (tele_type == TELEMETRY_TYPE_HOST)
-			printf("============ Telemetry Host Data area 1 FIFO ============\n");
-		else
-			printf("========= Telemetry Controller Data area 1 FIFO =========\n");
-		while((i + 4) < buf_size) {
-			printf("Debug Event Class Type         : 0x%x\n", da1_fifo[i]);
-			printf("Event ID         : 0x%x\n", (da1_fifo[i+1] | da1_fifo[i+2] << 8));
-			printf("Event Data Size         : 0x%x\n", da1_fifo[3]);
-			i = 4 + ((da1_fifo[3]) * 4);
-		}
-		printf("===============================================\n\n");
-	}
-}
-static void print_telemetry_da2_stat(__u8 *da1_stat, int tele_type, __u16 buf_size)
-{
-	if (da1_stat) {
-		unsigned int i = 0;
-		if (tele_type == TELEMETRY_TYPE_HOST)
-			printf("============ Telemetry Host Data area 1 Statistics ============\n");
-		else
-			printf("========= Telemetry Controller Data area 1 Statistics =========\n");
-		while((i + 8) < buf_size) {
-			printf("Statistics Identifier         : 0x%x\n", (da1_stat[i] | da1_stat[i+1] << 8));
-			printf("Statistics info         : 0x%x\n", da1_stat[i+2]);
-			printf("NS info         : 0x%x\n", da1_stat[i+3]);
-			printf("Statistic Data Size         : 0x%x\n", (da1_stat[i+4] | da1_stat[i+5] << 8));
-			printf("Reserved         : 0x%x\n", (da1_stat[i+6] | da1_stat[i+7] << 8));
-			i = 8 + ((da1_stat[i+4] | da1_stat[i+5] << 8) * 4);
-		}
-		printf("===============================================\n\n");
-	}
-}
-static void print_telemetry_da2_fifo(__u8 *da1_fifo, int tele_type, __u16 buf_size)
-{
-	if (da1_fifo) {
-		unsigned int i = 0;
-		if (tele_type == TELEMETRY_TYPE_HOST)
-			printf("============ Telemetry Host Data area 1 Statistics ============\n");
-		else
-			printf("========= Telemetry Controller Data area 1 Statistics =========\n");
-		while((i + 4) < buf_size) {
-			printf("Debug Event Class Type         : 0x%x\n", da1_fifo[i]);
-			printf("Event ID         : 0x%x\n", (da1_fifo[i+1] | da1_fifo[i+2] << 8));
-			printf("Event Data Size         : 0x%x\n", da1_fifo[3]);
-			i = 4 + ((da1_fifo[3]) * 4);
-		}
-		printf("===============================================\n\n");
-	}
-}
+		printf("\n");
 
+		printf("===============================================\n\n");
+	}
+}
+static void print_telemetry_da_stat(telemetry_stats_desc_t *da_stat,
+		int tele_type,
+		__u16 buf_size,
+		__u8 data_area)
+{
+	if (da_stat) {
+		unsigned int i = 0;
+		telemetry_stats_desc_t *next_da_stat = da_stat;
+
+		if (tele_type == TELEMETRY_TYPE_HOST)
+			printf("============ Telemetry Host Data Area %d Statistics ============\n",
+				data_area);
+		else
+			printf("========= Telemetry Controller Data Area %d Statistics =========\n",
+				data_area);
+		while((i + 8) < buf_size) {
+			print_stats_desc(next_da_stat);
+			i += 8 + ((next_da_stat->size) * 4);
+			next_da_stat = (telemetry_stats_desc_t *)((__u64)da_stat + i);
+
+			if ( (next_da_stat->id == 0) && (next_da_stat->size == 0))
+				break;
+		}
+		printf("===============================================\n\n");
+	}
+}
+static void print_telemetry_da_fifo(telemetry_event_desc_t *da_fifo,
+		__u16 buf_size,
+		int tele_type,
+		int da,
+		int index)
+{
+	if (da_fifo) {
+		unsigned int i = 0;
+		telemetry_event_desc_t *next_da_fifo = da_fifo;
+
+		if (tele_type == TELEMETRY_TYPE_HOST)
+			printf("========= Telemetry Host Data area %d Event FIFO %d =========\n",
+				da, index);
+		else
+			printf("====== Telemetry Controller Data area %d Event FIFO %d ======\n",
+				da, index);
+
+
+		while((i + 4) < buf_size) {
+			/* Print Event Data */
+			print_telemetry_fifo_event(next_da_fifo->class, /* Event class type */
+					next_da_fifo->id,                       /* Event ID         */
+					next_da_fifo->size,                     /* Event data size  */
+					(__u8 *)&next_da_fifo->data);           /* Event data       */
+
+			i += (4 + (next_da_fifo->size * 4));
+			next_da_fifo = (telemetry_event_desc_t *)((__u64)da_fifo + i);
+		}
+		printf("===============================================\n\n");
+	}
+}
 static int extract_dump_get_log(struct nvme_dev *dev, char *featurename, char *filename, char *sn,
 				int dumpsize, int transfersize, __u32 nsid, __u8 log_id,
 				__u8 lsp, __u64 offset, bool rae)
@@ -1149,7 +1098,7 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 	__u8 lsp = 0, rae = 0;
 	unsigned int i = 0;
 	char data[TELEMETRY_TRANSFER_SIZE] = { 0 };
-	char data1[1536] = { 0 };
+	char data1[3840] = { 0 };
 	char *featurename = 0;
 	struct telemetry_initiated_log *logheader = (struct telemetry_initiated_log *)data;
 	struct telemetry_data_area_1 *da1 = (struct telemetry_data_area_1 *)data1;
@@ -1179,7 +1128,7 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 
 	if (header_print)
 		print_telemetry_header(logheader, tele_type);
-	err = get_telemetry_data(dev, nsid, tele_type, 1536,
+	err = get_telemetry_data(dev, nsid, tele_type, 3840,
 				(void *)data1, lsp, rae, 512);
 	if (err)
 		return err;
@@ -1189,15 +1138,19 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 				(void *)da1_stat, lsp, rae, (da1->da1_stat_start) * 4);
 	if (err)
 		return err;
-	print_telemetry_da1_stat((void *)da1_stat, tele_type, (da1->da1_stat_size) * 4);
-	for (i = 0; i < 17 ; i++){
+	print_telemetry_da_stat((void *)da1_stat, tele_type, (da1->da1_stat_size) * 4, 1);
+	for (i = 0; i < 16 ; i++){
 		if (da1->event_fifo_da[i] == 1){
-			char *da1_fifo = calloc((da1->event_fifo_size[i]) * 4, sizeof(char));
-			err = get_telemetry_data(dev, nsid, tele_type, (da1->event_fifo_size[i]) * 4,
-				(void *)da1_stat, lsp, rae, (da1->event_fifo_start[i]) * 4);
+			char *da1_fifo = calloc((da1->event_fifos[i].size) * 4, sizeof(char));
+			err = get_telemetry_data(dev, nsid, tele_type, (da1->event_fifos[i].size) * 4,
+				(void *)da1_stat, lsp, rae, (da1->event_fifos[i].start) * 4);
 			if (err)
 				return err;
-			print_telemetry_da1_fifo((void *)da1_fifo, tele_type, (da1->event_fifo_size[i]) * 4);
+			print_telemetry_da_fifo((void *)da1_fifo,
+					(da1->event_fifos[i].size) * 4,
+					tele_type,
+					da1->event_fifo_da[i],
+					i);
 		}
 	}
 	char *da2_stat = calloc((da1->da2_stat_size * 4), sizeof(char));
@@ -1205,15 +1158,18 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 				(void *)da2_stat, lsp, rae, (da1->da2_stat_start) * 4);
 	if (err)
 		return err;
-	print_telemetry_da2_stat((void *)da2_stat, tele_type, (da1->da2_stat_size) * 4);
-	for (i = 0; i < 17 ; i++){
+	print_telemetry_da_stat((void *)da2_stat, tele_type, (da1->da2_stat_size) * 4, 2);
+	for (i = 0; i < 16 ; i++){
 		if (da1->event_fifo_da[i] == 2){
-			char *da1_fifo = calloc((da1->event_fifo_size[i]) * 4, sizeof(char));
-			err = get_telemetry_data(dev, nsid, tele_type, (da1->event_fifo_size[i]) * 4,
-				(void *)da1_stat, lsp, rae, (da1->event_fifo_start[i]) * 4);
+			char *da1_fifo = calloc((da1->event_fifos[i].size) * 4, sizeof(char));
+			err = get_telemetry_data(dev, nsid, tele_type, (da1->event_fifos[i].size) * 4,
+				(void *)da1_stat, lsp, rae, (da1->event_fifos[i].start) * 4);
 			if (err)
 				return err;
-			print_telemetry_da2_fifo((void *)da1_fifo, tele_type, (da1->event_fifo_size[i]) * 4);
+			print_telemetry_da_fifo((void *)da1_fifo, (da1->event_fifos[i].size) * 4,
+					tele_type,
+					da1->event_fifo_da[i],
+					i);
 		}
 	}
 
@@ -1409,6 +1365,7 @@ static int ocp_telemetry_log(int argc, char **argv, struct command *cmd,
 return err;
 }
 
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -1584,7 +1541,6 @@ out:
 	free(data);
 	return ret;
 }
-
 
 static int ocp_unsupported_requirements_log(int argc, char **argv, struct command *cmd,
 					    struct plugin *plugin)
