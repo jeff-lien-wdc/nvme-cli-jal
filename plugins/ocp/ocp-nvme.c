@@ -817,29 +817,6 @@ static void get_serial_number(struct nvme_id_ctrl *ctrl, char *sn)
 	}
 }
 
-static int get_telemetry_header(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
-				__u32 data_len, void *data, __u8 nLSP, __u8 nRAE)
-{
-	struct nvme_passthru_cmd cmd = {
-		.opcode = nvme_admin_get_log_page,
-		.nsid = ns,
-		.addr = (__u64)(uintptr_t) data,
-		.data_len = data_len,
-	};
-
-	__u32 numd = (data_len >> 2) - 1;
-	__u16 numdu = numd >> 16;
-	__u16 numdl = numd & 0xffff;
-
-	cmd.cdw10 = tele_type | (nLSP & 0x0F) << 8 | (nRAE & 0x01) << 15 | (numdl & 0xFFFF) << 16;
-	cmd.cdw11 = numdu;
-	cmd.cdw12 = 0;
-	cmd.cdw13 = 0;
-	cmd.cdw14 = 0;
-
-	return nvme_submit_admin_passthru(dev_fd(dev), &cmd, NULL);
-}
-
 static void print_telemetry_header(struct telemetry_initiated_log *logheader,
 		int tele_type)
 {
@@ -894,8 +871,8 @@ static int get_telemetry_data(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
 	__u16 numdl = numd & 0xffff;
 	cmd.cdw10 = tele_type | (nLSP & 0x0F) << 8 | (nRAE & 0x01) << 15 | (numdl & 0xFFFF) << 16;
 	cmd.cdw11 = numdu;
-	cmd.cdw12 = offset;
-	cmd.cdw13 = 0;
+	cmd.cdw12 = (__u32)(0x00000000FFFFFFFF & offset);
+	cmd.cdw13 = (__u32)((0xFFFFFFFF00000000 & offset) >> 8);
 	cmd.cdw14 = 0;
 	return nvme_submit_admin_passthru(dev_fd(dev), &cmd, NULL);
 }
@@ -1098,7 +1075,7 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 	__u8 lsp = 0, rae = 0;
 	unsigned int i = 0;
 	char data[TELEMETRY_TRANSFER_SIZE] = { 0 };
-	char data1[3840] = { 0 };
+	char data1[4096] = { 0 };
 	char *featurename = 0;
 	struct telemetry_initiated_log *logheader = (struct telemetry_initiated_log *)data;
 	struct telemetry_data_area_1 *da1 = (struct telemetry_data_area_1 *)data1;
@@ -1121,31 +1098,46 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 		rae = 1;
 	}
 
-	err = get_telemetry_header(dev, nsid, tele_type, TELEMETRY_HEADER_SIZE,
-				(void *)data, lsp, rae);
-	if (err)
+	/* Get the telemetry header */
+	err = get_telemetry_data(dev, nsid, tele_type, TELEMETRY_HEADER_SIZE,
+				(void *)data, lsp, rae, 0);
+	if (err) {
+		printf("get_telemetry_header failed, err: %d.\n", err);
 		return err;
+	}
 
 	if (header_print)
 		print_telemetry_header(logheader, tele_type);
-	err = get_telemetry_data(dev, nsid, tele_type, 3840,
+
+	/* Get the telemetry data */
+	err = get_telemetry_data(dev, nsid, tele_type, 4096,
 				(void *)data1, lsp, rae, 512);
-	if (err)
+	if (err) {
+		printf("get_telemetry_data failed, err: %d.\n", err);
 		return err;
+	}
+
 	print_telemetry_data_area_1(da1, tele_type);
+
 	char *da1_stat = calloc((da1->da1_stat_size * 4), sizeof(char));
 	err = get_telemetry_data(dev, nsid, tele_type, (da1->da1_stat_size) * 4,
 				(void *)da1_stat, lsp, rae, (da1->da1_stat_start) * 4);
-	if (err)
+	if (err) {
+		printf("get_telemetry_data da1 stats failed, err: %d.\n", err);
 		return err;
+	}
+
 	print_telemetry_da_stat((void *)da1_stat, tele_type, (da1->da1_stat_size) * 4, 1);
+
 	for (i = 0; i < 16 ; i++){
 		if (da1->event_fifo_da[i] == 1){
 			char *da1_fifo = calloc((da1->event_fifos[i].size) * 4, sizeof(char));
 			err = get_telemetry_data(dev, nsid, tele_type, (da1->event_fifos[i].size) * 4,
 				(void *)da1_stat, lsp, rae, (da1->event_fifos[i].start) * 4);
-			if (err)
+			if (err) {
+				printf("get_telemetry_data da1 event fifos failed, err: %d.\n", err);
 				return err;
+			}
 			print_telemetry_da_fifo((void *)da1_fifo,
 					(da1->event_fifos[i].size) * 4,
 					tele_type,
@@ -1156,16 +1148,22 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 	char *da2_stat = calloc((da1->da2_stat_size * 4), sizeof(char));
 	err = get_telemetry_data(dev, nsid, tele_type, (da1->da2_stat_size) * 4,
 				(void *)da2_stat, lsp, rae, (da1->da2_stat_start) * 4);
-	if (err)
+	if (err) {
+		printf("get_telemetry_data da2 stats failed, err: %d.\n", err);
 		return err;
+	}
+
 	print_telemetry_da_stat((void *)da2_stat, tele_type, (da1->da2_stat_size) * 4, 2);
+
 	for (i = 0; i < 16 ; i++){
 		if (da1->event_fifo_da[i] == 2){
 			char *da1_fifo = calloc((da1->event_fifos[i].size) * 4, sizeof(char));
 			err = get_telemetry_data(dev, nsid, tele_type, (da1->event_fifos[i].size) * 4,
 				(void *)da1_stat, lsp, rae, (da1->event_fifos[i].start) * 4);
-			if (err)
+			if (err) {
+				printf("get_telemetry_data da2 event fifos failed, err: %d.\n", err);
 				return err;
+			}
 			print_telemetry_da_fifo((void *)da1_fifo, (da1->event_fifos[i].size) * 4,
 					tele_type,
 					da1->event_fifo_da[i],
