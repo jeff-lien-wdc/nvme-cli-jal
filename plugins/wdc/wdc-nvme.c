@@ -971,9 +971,12 @@ static int wdc_enc_submit_move_data(struct nvme_dev *dev, char *cmd, int len, in
 static bool get_dev_mgment_cbs_data(nvme_root_t r, struct nvme_dev *dev, __u8 log_id,
 				    void **cbs_data);
 static __u32 wdc_get_fw_cust_id(nvme_root_t r, struct nvme_dev *dev);
-static int wdc_print_c0_cloud_attr_log(void *data, int fmt);
+static int wdc_print_c0_cloud_attr_log(void *data,
+		int fmt,
+		struct nvme_dev *dev);
 static int wdc_print_c0_eol_log(void *data, int fmt);
-static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log);
+static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log,
+		struct nvme_dev *dev);
 static void wdc_show_cloud_smart_log_json(struct ocp_cloud_smart_log *log);
 
 /* Drive log data size */
@@ -5883,7 +5886,7 @@ static void wdc_print_fw_act_history_log_json(__u8 *data, int num_entries,
 	json_free_object(root);
 }
 
-static int nvme_get_print_ocp_cloud_smart_log(int fd,
+static int nvme_get_print_ocp_cloud_smart_log(struct nvme_dev *dev,
 		int uuid_index,
 		__u32 namespace_id,
 		int fmt)
@@ -5891,7 +5894,7 @@ static int nvme_get_print_ocp_cloud_smart_log(int fd,
 	struct ocp_cloud_smart_log *log_ptr = NULL;
 	int ret, i;
 	__u32 length = WDC_NVME_SMART_CLOUD_ATTR_LEN;
-
+	int fd = dev_fd(dev);
 
 	log_ptr = (struct ocp_cloud_smart_log *)malloc(sizeof(__u8) * length);
 	if (!log_ptr) {
@@ -5950,7 +5953,7 @@ static int nvme_get_print_ocp_cloud_smart_log(int fd,
 
 		if (!ret)
 			/* parse the data */
-			wdc_print_c0_cloud_attr_log(log_ptr, fmt);
+			wdc_print_c0_cloud_attr_log(log_ptr, fmt, dev);
 	} else {
 		fprintf(stderr, "ERROR: WDC: Unable to read C0 Log Page data\n");
 		ret = -1;
@@ -5960,7 +5963,7 @@ static int nvme_get_print_ocp_cloud_smart_log(int fd,
 	return ret;
 }
 
-static int nvme_get_print_c0_eol_log(int fd,
+static int nvme_get_print_c0_eol_log(struct nvme_dev *dev,
 				int uuid_index,
 				__u32 namespace_id,
 				int fmt)
@@ -5968,8 +5971,9 @@ static int nvme_get_print_c0_eol_log(int fd,
 	void *log_ptr = NULL;
 	int ret;
 	__u32 length = WDC_NVME_EOL_STATUS_LOG_LEN;
+	int fd = dev_fd(dev);
 
-	log_ptr = (struct ocp_cloud_smart_log *)malloc(sizeof(__u8) * length);
+	log_ptr = (void *)malloc(sizeof(__u8) * length);
 	if (!log_ptr) {
 		fprintf(stderr, "ERROR: WDC: malloc: %s\n", strerror(errno));
 		return -1;
@@ -6849,7 +6853,9 @@ static int wdc_print_ext_smart_cloud_log(void *data, int fmt)
 	return 0;
 }
 
-static int wdc_print_c0_cloud_attr_log(void *data, int fmt)
+static int wdc_print_c0_cloud_attr_log(void *data,
+		int fmt,
+		struct nvme_dev *dev)
 {
 	struct ocp_cloud_smart_log *log = (struct ocp_cloud_smart_log *)data;
 
@@ -6863,7 +6869,7 @@ static int wdc_print_c0_cloud_attr_log(void *data, int fmt)
 		d_raw((unsigned char *)log, sizeof(struct ocp_cloud_smart_log));
 		break;
 	case NORMAL:
-		wdc_show_cloud_smart_log_normal(log);
+		wdc_show_cloud_smart_log_normal(log, dev);
 		break;
 	case JSON:
 		wdc_show_cloud_smart_log_json(log);
@@ -6879,6 +6885,9 @@ static int wdc_print_c0_eol_log(void *data, int fmt)
 		return -1;
 	}
 	switch (fmt) {
+	case BINARY:
+		d_raw((unsigned char *)data, WDC_NVME_EOL_STATUS_LOG_LEN);
+		break;
 	case NORMAL:
 		wdc_print_eol_c0_normal(data);
 		break;
@@ -6895,12 +6904,12 @@ static int wdc_get_c0_log_page_sn_customer_id_0x100X(struct nvme_dev *dev, int u
 	int ret;
 
 	if (!uuid_index) {
-		ret = nvme_get_print_ocp_cloud_smart_log(dev_fd(dev),
+		ret = nvme_get_print_ocp_cloud_smart_log(dev,
 				uuid_index,
 				namespace_id,
 				fmt);
 	} else if (uuid_index == 1) {
-		ret = nvme_get_print_c0_eol_log(dev_fd(dev),
+		ret = nvme_get_print_c0_eol_log(dev,
 				uuid_index,
 				namespace_id,
 				fmt);
@@ -6929,7 +6938,7 @@ static int wdc_get_c0_log_page_sn(nvme_root_t r, struct nvme_dev *dev, int uuid_
 		ret = wdc_get_c0_log_page_sn_customer_id_0x100X(dev, uuid_index, format,
 								namespace_id, fmt);
 	} else {
-		ret = nvme_get_print_c0_eol_log(dev_fd(dev),
+		ret = nvme_get_print_c0_eol_log(dev,
 				0,
 				namespace_id,
 				fmt);
@@ -6993,12 +7002,12 @@ static int wdc_get_c0_log_page(nvme_root_t r, struct nvme_dev *dev, char *format
 		fallthrough;
 	case WDC_NVME_SN655_DEV_ID:
 		if (uuid_index == 0) {
-			ret = nvme_get_print_ocp_cloud_smart_log(dev_fd(dev),
+			ret = nvme_get_print_ocp_cloud_smart_log(dev,
 					uuid_index,
 					namespace_id,
 					fmt);
 		} else {
-			ret = nvme_get_print_c0_eol_log(dev_fd(dev),
+			ret = nvme_get_print_c0_eol_log(dev,
 					uuid_index,
 					namespace_id,
 					fmt);
@@ -7008,7 +7017,7 @@ static int wdc_get_c0_log_page(nvme_root_t r, struct nvme_dev *dev, char *format
 	case WDC_NVME_ZN350_DEV_ID:
 		fallthrough;
 	case WDC_NVME_ZN350_DEV_ID_1:
-		ret = nvme_get_print_ocp_cloud_smart_log(dev_fd(dev),
+		ret = nvme_get_print_ocp_cloud_smart_log(dev,
 				0,
 				NVME_NSID_ALL,
 				fmt);
@@ -7766,6 +7775,7 @@ static void wdc_show_cloud_smart_log_json(struct ocp_cloud_smart_log *log)
 	struct json_object *dssd_specific_ver;
 	char buf[2 * sizeof(log->log_page_guid) + 3];
 	char lowest_fr[sizeof(log->lowest_permitted_fw_rev) + 1];
+	uint16_t smart_log_ver = (uint16_t)le16_to_cpu(log->log_page_version);
 
 	bad_user_nand_blocks = json_create_object();
 	json_object_add_value_uint(bad_user_nand_blocks, "normalized",
@@ -7831,7 +7841,8 @@ static void wdc_show_cloud_smart_log_json(struct ocp_cloud_smart_log *log)
 	json_object_add_value_object(root, "user_data_erase_counts",
 				     user_data_erase_counts);
 	json_object_add_value_object(root, "thermal_status", thermal_status);
-	json_object_add_value_object(root, "dssd_specific_ver",
+	if (smart_log_ver >= 3)
+		json_object_add_value_object(root, "dssd_specific_ver",
 				     dssd_specific_ver);
 	json_object_add_value_uint(root, "pcie_correctable_error_count",
 				   le64_to_cpu(log->pcie_correctable_error_count));
@@ -7841,10 +7852,19 @@ static void wdc_show_cloud_smart_log_json(struct ocp_cloud_smart_log *log)
 				   log->percent_free_blocks);
 	json_object_add_value_uint(root, "capacitor_health",
 				   le16_to_cpu(log->capacitor_health));
-	sprintf(buf, "%c", log->nvme_base_errata_ver);
-	json_object_add_value_string(root, "nvme_base_errata_version", buf);
-	sprintf(buf, "%c", log->nvme_cmd_set_errata_ver);
-	json_object_add_value_string(root, "nvme_cmd_set_errata_version", buf);
+	if (smart_log_ver >= 3) {
+		if (smart_log_ver >= 4) {
+			sprintf(buf, "%c", log->nvme_base_errata_ver);
+			json_object_add_value_string(root, "nvme_base_errata_version", buf);
+			sprintf(buf, "%c", log->nvme_cmd_set_errata_ver);
+			json_object_add_value_string(root, "nvme_cmd_set_errata_version", buf);
+		}
+		else {
+			sprintf(buf, "%c", log->nvme_base_errata_ver);
+			json_object_add_value_string(root, "nvme_errata_version", buf);
+		}
+	}
+
 	json_object_add_value_uint(root, "unaligned_io",
 				   le64_to_cpu(log->unaligned_io));
 	json_object_add_value_uint(root, "security_version_number",
@@ -7855,15 +7875,22 @@ static void wdc_show_cloud_smart_log_json(struct ocp_cloud_smart_log *log)
 				     le_to_float(log->plp_start_count, 16));
 	json_object_add_value_uint64(root, "endurance_estimate",
 				     le_to_float(log->endurance_estimate, 16));
-	json_object_add_value_uint(root, "pcie_link_retraining_count",
-				   le64_to_cpu(log->pcie_link_retraining_cnt));
-	json_object_add_value_uint(root, "power_state_change_count",
-				   le64_to_cpu(log->power_state_change_cnt));
-	snprintf(lowest_fr, sizeof(lowest_fr), "%-.*s",
-			(int)sizeof(log->lowest_permitted_fw_rev), log->lowest_permitted_fw_rev);
-	json_object_add_value_string(root, "lowest_permitted_fw_rev", lowest_fr);
+	if (smart_log_ver >= 3) {
+		json_object_add_value_uint(root, "pcie_link_retraining_count",
+					   le64_to_cpu(log->pcie_link_retraining_cnt));
+		json_object_add_value_uint(root, "power_state_change_count",
+					   le64_to_cpu(log->power_state_change_cnt));
+		if (smart_log_ver >= 4) {
+			snprintf(lowest_fr, sizeof(lowest_fr), "%-.*s",
+					(int)sizeof(log->lowest_permitted_fw_rev), log->lowest_permitted_fw_rev);
+			json_object_add_value_string(root, "lowest_permitted_fw_rev", lowest_fr);
+		}
+		else
+			json_object_add_value_uint128(root, "hardware_revision",
+					le128_to_cpu((__u8 *)&log->lowest_permitted_fw_rev[0]));
+	}
 	json_object_add_value_uint(root, "log_page_version",
-				   le16_to_cpu(log->log_page_version));
+			smart_log_ver);
 	stringify_log_page_guid(log->log_page_guid, buf);
 	json_object_add_value_string(root, "log_page_guid", buf);
 
@@ -7872,12 +7899,13 @@ static void wdc_show_cloud_smart_log_json(struct ocp_cloud_smart_log *log)
 	json_free_object(root);
 }
 
-static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log)
+static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log,
+		struct nvme_dev *dev)
 {
 	char buf[2 * sizeof(log->log_page_guid) + 3];
+	uint16_t smart_log_ver = (uint16_t)le16_to_cpu(log->log_page_version);
 
-	//printf("Smart Extended Log for NVME device:%s\n", dev->name);
-	printf("SMART Cloud Attributes :-\n");
+	printf("SMART Cloud Attributes for NVMe device       : %s\n", dev->name);
 	printf("Physical Media Units Written                 : %'.0Lf\n",
 	       le_to_float(log->physical_media_units_written, 16));
 	printf("Physical Media Units Read                    : %'.0Lf\n",
@@ -7912,14 +7940,16 @@ static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log)
 	       stringify_cloud_smart_log_thermal_status(log->thermal_status.current_status));
 	printf("Thermal Throttling Status (Number of Events) : %" PRIu8 "\n",
 	       log->thermal_status.num_events);
-	printf("NVMe Major Version                           : %" PRIu8 "\n",
-	       log->dssd_specific_ver.major_ver);
-	printf("     Minor Version                           : %" PRIu16 "\n",
-	le16_to_cpu(log->dssd_specific_ver.minor_ver));
-	printf("     Point Version                           : %" PRIu16 "\n",
-	le16_to_cpu(log->dssd_specific_ver.point_ver));
-	printf("     Errata Version                          : %" PRIu8 "\n",
-	       log->dssd_specific_ver.errata_ver);
+	if (smart_log_ver >= 3) {
+		printf("NVMe Major Version                           : %" PRIu8 "\n",
+			   log->dssd_specific_ver.major_ver);
+		printf("     Minor Version                           : %" PRIu16 "\n",
+		le16_to_cpu(log->dssd_specific_ver.minor_ver));
+		printf("     Point Version                           : %" PRIu16 "\n",
+		le16_to_cpu(log->dssd_specific_ver.point_ver));
+		printf("     Errata Version                          : %" PRIu8 "\n",
+			   log->dssd_specific_ver.errata_ver);
+	}
 	printf("PCIe Correctable Error Count                 : %" PRIu64 "\n",
 	       le64_to_cpu(log->pcie_correctable_error_count));
 	printf("Incomplete Shutdowns                         : %" PRIu32 "\n",
@@ -7928,10 +7958,17 @@ static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log)
 	       log->percent_free_blocks);
 	printf("Capacitor Health                             : %" PRIu16 "%%\n",
 	       le16_to_cpu(log->capacitor_health));
-	printf("NVMe Base Errata Version                     : %c\n",
-	       log->nvme_base_errata_ver);
-	printf("NVMe Command Set Errata Version              : %c\n",
-	       log->nvme_cmd_set_errata_ver);
+	if (smart_log_ver >= 3) {
+		if (smart_log_ver >= 4) {
+			printf("NVMe Base Errata Version                     : %c\n",
+				   log->nvme_base_errata_ver);
+			printf("NVMe Command Set Errata Version              : %c\n",
+				   log->nvme_cmd_set_errata_ver);
+		} else {
+			printf("NVMe Errata Version                          : %c\n",
+				   log->nvme_base_errata_ver);
+		}
+	}
 	printf("Unaligned IO                                 : %" PRIu64 "\n",
 	       le64_to_cpu(log->unaligned_io));
 	printf("Security Version Number                      : %" PRIu64 "\n",
@@ -7942,14 +7979,21 @@ static void wdc_show_cloud_smart_log_normal(struct ocp_cloud_smart_log *log)
 	       le_to_float(log->plp_start_count, 16));
 	printf("Endurance Estimate                           : %'.0Lf\n",
 	       le_to_float(log->endurance_estimate, 16));
-	printf("PCIe Link Retraining Count                   : %" PRIu64 "\n",
-	       le64_to_cpu(log->pcie_link_retraining_cnt));
-	printf("Power State Change Count                     : %" PRIu64 "\n",
-	       le64_to_cpu(log->power_state_change_cnt));
-	printf("Lowest Permitted FW Revision                 : %-.*s \n",
-			(int)sizeof(log->lowest_permitted_fw_rev), log->lowest_permitted_fw_rev);
+	if (smart_log_ver >= 3) {
+		printf("PCIe Link Retraining Count                   : %" PRIu64 "\n",
+		       le64_to_cpu(log->pcie_link_retraining_cnt));
+		printf("Power State Change Count                     : %" PRIu64 "\n",
+		       le64_to_cpu(log->power_state_change_cnt));
+		if (smart_log_ver >= 4)
+			printf("Lowest Permitted FW Revision                 : %-.*s \n",
+					(int)sizeof(log->lowest_permitted_fw_rev),
+					log->lowest_permitted_fw_rev);
+		else
+			printf("Hardware Revision                            : %s\n",
+					uint128_t_to_string(le128_to_cpu((__u8 *)&log->lowest_permitted_fw_rev[0])));
+	}
 	printf("Log Page Version                             : %" PRIu16 "\n",
-	       le16_to_cpu(log->log_page_version));
+			smart_log_ver);
 	stringify_log_page_guid(log->log_page_guid, buf);
 	printf("Log Page GUID                                : %s\n", buf);
 	printf("\n\n");
@@ -8065,7 +8109,7 @@ static int wdc_vs_smart_add_log(int argc, char **argv, struct command *command,
 				goto out;
 			}
 
-			ret = nvme_get_print_ocp_cloud_smart_log(dev_fd(dev),
+			ret = nvme_get_print_ocp_cloud_smart_log(dev,
 					0,
 					NVME_NSID_ALL,
 					fmt);
