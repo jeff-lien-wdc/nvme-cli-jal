@@ -6469,8 +6469,8 @@ static void wdc_print_tcg_config_log_normal(void *data)
 	printf("  Number of Range Provisioned Locking Objects       : 0x%x\n", log_data->num_rp_locking_obj);
 	printf("  Number of Namespace Provisioned Locking Objects   : 0x%x\n", log_data->num_np_locking_obj);
 	printf("  Number of Read Locked Locking Objects             : 0x%x\n", log_data->num_rl_locking_obj);
-	printf("  Number of Write Unlocked Locking Objects          : 0x%x\n", log_data->num_wl_locking_obj);
-	printf("  Number of Read Locked Locking Objects             : 0x%x\n", log_data->num_ru_locking_obj);
+	printf("  Number of Write Locked Locking Objects            : 0x%x\n", log_data->num_wl_locking_obj);
+	printf("  Number of Read Unlocked Locking Objects           : 0x%x\n", log_data->num_ru_locking_obj);
 	printf("  Number of Write Unlocked Locking Objects          : 0x%x\n", log_data->num_wu_locking_obj);
 	printf("  SID Authentication Try Count                      : 0x%x\n", le32_to_cpu(log_data->sid_auth_try_count));
 	printf("  SID Authentication Try Limit                      : 0x%x\n", le32_to_cpu(log_data->sid_auth_try_limit));
