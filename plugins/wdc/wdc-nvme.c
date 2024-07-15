@@ -181,6 +181,7 @@
 #define WDC_DRIVE_CAP_OCP_C5_LOG_PAGE			0x0000008000000000
 #define WDC_DRIVE_CAP_DEVICE_WAF			0x0000010000000000
 #define WDC_DRIVE_CAP_SET_LATENCY_MONITOR		0x0000020000000000
+#define WDC_DRIVE_CAP_TCG_CONFIG_LOG_PAGE		0x0000040000000000
 
 #define WDC_DRIVE_CAP_SMART_LOG_MASK			(WDC_DRIVE_CAP_C0_LOG_PAGE | \
 							 WDC_DRIVE_CAP_C1_LOG_PAGE | \
@@ -844,6 +845,39 @@ static __u8 hw_rev_log_guid[WDC_NVME_C6_GUID_LENGTH] = {
 	0xAA, 0xB0, 0x05, 0xF5, 0x13, 0x5E, 0x48, 0x15,
 	0xAB, 0x89, 0x05, 0xBA, 0x8B, 0xE2, 0xBF, 0x3C
 };
+
+#define WDC_NVME_GUID_LENGTH               16
+#define WDC_NVME_TCG_CONFIG_LOG_ID         0xc7
+#define WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN   512
+
+typedef struct __attribute__((__packed__)) wdc_nvme_tcg_config_log
+{
+	__u8  state;                   /*   0 State                          */
+	__u8  rsrvd1[3];               /*   1 Reserved                       */
+	__u8  locking_sp_act_count;    /*   4 Locking SP Activation Count    */
+	__u8  tper_revert_count;       /*   5 TPer Revert Count              */
+	__u8  locking_sp_revert_count; /*   6 Locking SP Revert Count        */
+	__u8  num_locking_obj;         /*   7 Number of Locking Objects      */
+	__u8  num_sum_locking_obj;     /*   8 Number of Single User Mode Locking Objects */
+	__u8  num_rp_locking_obj;      /*   9 Number of Range Provisioned Locking Objects */
+	__u8  num_np_locking_obj;      /*  10 Number of Namespace Provisioned Locking Objects */
+	__u8  num_rl_locking_obj;      /*  11 Number of Read Locked Locking Objects */
+	__u8  num_wl_locking_obj;      /*  12 Number of Write Locked Locking Objects */
+	__u8  num_ru_locking_obj;      /*  13 Nubmer of Read Unlocked Locking Objects */
+	__u8  num_wu_locking_obj;      /*  14 Nubmer of Write Unlocked Locking Objects */
+	__u8  rsrvd2;                  /*  15 Reserved                       */
+	__u32 sid_auth_try_count;      /*  16 SID Authentication Try Count   */
+	__u32 sid_auth_try_limit;      /*  20 SID Authentication Try Limit   */
+	__u32 prgm_tcg_reset_count;    /*  24 Programmatic TCG_Reset Count   */
+	__u32 prgm_reset_lock_count;   /*  28 Programmatic Reset Lock Count  */
+	__u32 tcg_error_count;         /*  32 TCG Error Count                */
+	__u8  rsrvd3[458];             /*  36 Reserved                       */
+	__u16 log_page_version;        /* 494 Log Page Version               */
+	__u8  log_page_guid[16];       /* 496 Log Page GUID                  */
+} wdc_nvme_tcg_config_log;
+
+static __u8 tcg_config_log_guid[WDC_NVME_GUID_LENGTH] = { 0x06, 0x40, 0x24, 0xBD, 0x7E, 0xE0, 0xE6, 0x83,
+		0xC0, 0x47, 0x54, 0xFA, 0x9D, 0x2A, 0xE0, 0x54 };
 
 struct __packed WDC_DE_VU_FILE_META_DATA {
 	__u8 fileName[WDC_DE_FILE_NAME_SIZE];
@@ -1677,6 +1711,31 @@ static bool wdc_enc_check_model(struct nvme_dev *dev)
 		fprintf(stderr, "ERROR: WDC: unsupported WDC enclosure, Model = %s\n", model);
 
 	return supported;
+}
+
+static bool wdc_check_guid(__u8 *expected_guid, __u8 *actual_guid) {
+	bool guidMatch = false;
+
+	guidMatch = !memcmp(expected_guid,
+			actual_guid,
+			WDC_NVME_GUID_LENGTH);
+
+	if (guidMatch == false)
+	{
+		fprintf(stderr, "ERROR : WDC : Unknown Log Page GUID\n");
+		int j;
+		fprintf(stderr, "ERROR : WDC : Expected GUID:  0x");
+		for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
+			fprintf(stderr, "%02x", expected_guid[j]);
+		}
+		fprintf(stderr, "\nERROR : WDC : Actual GUID:    0x");
+		for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
+			fprintf(stderr, "%02x", actual_guid[j]);
+		}
+		fprintf(stderr, "\n");
+	}
+
+	return guidMatch;
 }
 
 static __u64 wdc_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
@@ -5990,7 +6049,6 @@ static int nvme_get_hw_rev_log(int fd, __u8 **data, int uuid_index, __u32 namesp
 	return ret;
 }
 
-
 static void wdc_print_hw_rev_log_normal(void *data)
 {
 	int i;
@@ -6289,6 +6347,100 @@ static void wdc_print_hw_rev_log_json(void *data)
 	memset((void *)json_data, 0, 40);
 	sprintf((char *)json_data, "0x%"PRIx64"%"PRIx64"", le64_to_cpu(*(uint64_t *)&log_data->hw_rev_guid[8]),
 		le64_to_cpu(*(uint64_t *)&log_data->hw_rev_guid[0]));
+	json_object_add_value_string(root, "Log Page GUID", json_data);
+
+	json_print_object(root, NULL);
+	printf("\n");
+	json_free_object(root);
+}
+
+static void wdc_print_tcg_config_log_normal(void *data)
+{
+	wdc_nvme_tcg_config_log *log_data = (wdc_nvme_tcg_config_log *)data;
+
+	printf("  TCG Configuration Log:- \n");
+
+	printf("  State                                             : 0x%x\n",
+			log_data->state);
+	printf("  Locking SP Activation Count                       : 0x%x\n",
+			log_data->locking_sp_act_count);
+	printf("  TPer Revert Count                                 : 0x%x\n",
+			log_data->tper_revert_count);
+	printf("  Locking SP Revert Count                           : 0x%x\n",
+			log_data->locking_sp_revert_count);
+	printf("  Number of Locking Objects                         : 0x%x\n",
+			log_data->num_locking_obj);
+	printf("  Number of Single User Mode Locking Objects        : 0x%x\n",
+			log_data->num_sum_locking_obj);
+	printf("  Number of Range Provisioned Locking Objects       : 0x%x\n",
+			log_data->num_rp_locking_obj);
+	printf("  Number of Namespace Provisioned Locking Objects   : 0x%x\n",
+			log_data->num_np_locking_obj);
+	printf("  Number of Read Locked Locking Objects             : 0x%x\n",
+			log_data->num_rl_locking_obj);
+	printf("  Number of Write Unlocked Locking Objects          : 0x%x\n",
+			log_data->num_wl_locking_obj);
+	printf("  Number of Read Locked Locking Objects             : 0x%x\n",
+			log_data->num_ru_locking_obj);
+	printf("  Number of Write Unlocked Locking Objects          : 0x%x\n",
+			log_data->num_wu_locking_obj);
+	printf("  SID Authentication Try Count                      : 0x%x\n",
+			le32_to_cpu(log_data->sid_auth_try_count));
+	printf("  SID Authentication Try Limit                      : 0x%x\n",
+			le32_to_cpu(log_data->sid_auth_try_limit));
+	printf("  Programmatic TCG_Reset Count                      : 0x%x\n",
+			le32_to_cpu(log_data->prgm_tcg_reset_count));
+	printf("  Programmatic Reset Lock Count                     : 0x%x\n",
+			le32_to_cpu(log_data->prgm_reset_lock_count));
+	printf("  TCG Error Count                                   : 0x%x\n",
+			le32_to_cpu(log_data->tcg_error_count));
+
+	printf("  Log Page Version          : %d\n",
+			le16_to_cpu(log_data->log_page_version));
+	printf("  Log page GUID             : 0x");
+	printf("%"PRIx64"%"PRIx64"\n",le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
+			le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
+	printf("\n");
+}
+
+static void wdc_print_tcg_config_log_json(void *data)
+{
+	wdc_nvme_tcg_config_log *log_data = (wdc_nvme_tcg_config_log *)data;
+	struct json_object *root;
+	char json_data[80];
+
+	root = json_create_object();
+	json_object_add_value_uint(root, "State", log_data->state);
+
+	json_object_add_value_uint(root, "Locking SP Activation Count", log_data->locking_sp_act_count);
+	json_object_add_value_uint(root, "TPer Revert Count", log_data->tper_revert_count);
+	json_object_add_value_uint(root, "Locking SP Revert Count", log_data->locking_sp_revert_count);
+	json_object_add_value_uint(root, "Number of Locking Objects", log_data->num_locking_obj);
+	json_object_add_value_uint(root, "Number of Single User Mode Locking Objects", log_data->num_sum_locking_obj);
+	json_object_add_value_uint(root, "Number of Range Provisioned Locking Objects", log_data->num_rp_locking_obj);
+	json_object_add_value_uint(root, "Number of Namespace Provisioned Locking Objects", log_data->num_np_locking_obj);
+	json_object_add_value_uint(root, "Number of Read Locked Locking Objects", log_data->num_rl_locking_obj);
+	json_object_add_value_uint(root, "Number of Write Locked Locking Objects", log_data->num_wl_locking_obj);
+	json_object_add_value_uint(root, "Number of Read Unlocked Locking Objects", log_data->num_ru_locking_obj);
+	json_object_add_value_uint(root, "Number of Write Unlocked Locking Objects", log_data->num_wu_locking_obj);
+
+	json_object_add_value_uint(root, "SID Authentication Try Count",
+			le32_to_cpu(log_data->sid_auth_try_count));
+	json_object_add_value_uint(root, "SID Authentication Try Limit",
+			le32_to_cpu(log_data->sid_auth_try_limit));
+	json_object_add_value_uint(root, "Programmatic TCG_Reset Count",
+			le32_to_cpu(log_data->prgm_tcg_reset_count));
+	json_object_add_value_uint(root, "Programmatic Reset Lock Count",
+			le32_to_cpu(log_data->prgm_reset_lock_count));
+	json_object_add_value_uint(root, "TCG Error Count",
+			le32_to_cpu(log_data->tcg_error_count));
+
+	json_object_add_value_uint(root, "Log Page Version",
+			le16_to_cpu(log_data->log_page_version));
+
+	memset((void*)json_data, 0, 40);
+	sprintf((char*)json_data, "0x%"PRIx64"%"PRIx64"", le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
+		le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
 	json_object_add_value_string(root, "Log Page GUID", json_data);
 
 	json_print_object(root, NULL);
@@ -8362,6 +8514,100 @@ static int wdc_vs_hw_rev_log(int argc, char **argv, struct command *command,
 free_buf:
 	if (data)
 		free(data);
+
+out:
+	nvme_free_tree(r);
+	dev_close(dev);
+	return ret;
+}
+
+static int wdc_get_tcg_config_log(int argc, char **argv, struct command *command,
+		struct plugin *plugin)
+{
+	const char *desc = "Retrieve TCG Configuration Log Page";
+	const char *namespace_id = "desired namespace id";
+	__u64 capabilities = 0;
+	struct nvme_dev *dev;
+	int ret;
+	nvme_print_flags_t fmt;
+	wdc_nvme_tcg_config_log *log_ptr = NULL;
+	nvme_root_t r;
+
+	struct config {
+		char *output_format;
+		__u32 namespace_id;
+		bool rae;
+	};
+
+	struct config cfg = {
+		.output_format = "normal",
+		.namespace_id = NVME_NSID_ALL,
+		.rae = false,
+	};
+
+	OPT_ARGS(opts) = {
+		OPT_FMT("output-format",      'o', &cfg.output_format,    "Output Format: normal|json"),
+		OPT_UINT("namespace-id",      'n', &cfg.namespace_id,     namespace_id),
+		OPT_FLAG("rae",               'r', &cfg.rae,              "Retain Asynch Event"),
+		OPT_END()
+	};
+
+	ret = parse_and_open(&dev, argc, argv, desc, opts);
+	if (ret)
+		return ret;
+
+	r = nvme_scan(NULL);
+
+	capabilities = wdc_get_drive_capabilities(r, dev);
+
+	if ((capabilities & WDC_DRIVE_CAP_TCG_CONFIG_LOG_PAGE) == 0) {
+		fprintf(stderr, "ERROR : WDC: unsupported device for this command\n");
+		ret = -1;
+		goto out;
+	}
+
+	if ((log_ptr = (wdc_nvme_tcg_config_log *)malloc(sizeof (__u8) * WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN)) == NULL) {
+		fprintf(stderr, "ERROR : WDC : malloc : %s\n", strerror(errno));
+		ret = -1;
+		goto out;
+	}
+
+	ret = nvme_get_nsid_log(dev_fd(dev), cfg.rae, WDC_NVME_TCG_CONFIG_LOG_ID,
+			cfg.namespace_id, WDC_NVME_TCG_CONFIG_LOG_PAGE_LEN, log_ptr);
+
+	if (strcmp(cfg.output_format, "json"))
+		nvme_show_status(ret);
+
+	if (ret == 0) {
+		if (!wdc_check_guid((__u8 *)tcg_config_log_guid, (__u8 *)&log_ptr->log_page_guid)) {
+			fprintf(stderr, "ERROR : WDC : Invalid TCG Config Log Page GUID\n");
+			ret = -1;
+			goto free_buf;
+		}
+
+		fmt = validate_output_format(cfg.output_format, &fmt);
+		if (fmt < 0) {
+			fprintf(stderr, "ERROR : WDC %s: invalid output format\n", __func__);
+			ret = fmt;
+			goto free_buf;
+		}
+
+		switch (fmt) {
+		case NORMAL:
+			wdc_print_tcg_config_log_normal(log_ptr);
+			break;
+		case JSON:
+			wdc_print_tcg_config_log_json(log_ptr);
+			break;
+		}
+	} else {
+		fprintf(stderr, "ERROR : WDC : Unable to read TCG Configuration log page\n");
+		ret = -1;
+	}
+
+free_buf:
+	if (log_ptr)
+		free(log_ptr);
 
 out:
 	nvme_free_tree(r);

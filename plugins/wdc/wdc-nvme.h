@@ -5,7 +5,7 @@
 #if !defined(WDC_NVME) || defined(CMD_HEADER_MULTI_READ)
 #define WDC_NVME
 
-#define WDC_PLUGIN_VERSION   "2.8.1"
+#define WDC_PLUGIN_VERSION   "2.9.1"
 #include "cmd.h"
 
 PLUGIN(NAME("wdc", "Western Digital vendor specific extensions", WDC_PLUGIN_VERSION),
@@ -80,6 +80,9 @@ PLUGIN(NAME("wdc", "Western Digital vendor specific extensions", WDC_PLUGIN_VERS
 		ENTRY("vs-device-waf",
 			"WDC Calculate Device Write Amplication Factor",
 			wdc_vs_device_waf)
+		ENTRY("get-tcg-config-log",
+			"WDC Get the TCG Configuration Log Page",
+			wdc_get_tcg_config_log)
 		ENTRY("set-latency-monitor-feature",
 			"WDC set Latency Monitor feature",
 			wdc_set_latency_monitor_feature)
