@@ -382,15 +382,14 @@
 #define WDC_NVME_GET_FW_ACT_HISTORY_C2_LOG_ID		0xC2
 #define WDC_FW_ACT_HISTORY_C2_LOG_BUF_LEN		0x1000
 #define WDC_MAX_NUM_ACT_HIST_ENTRIES			20
-#define WDC_C2_GUID_LENGTH				16
+#define WDC_NVME_GUID_LENGTH				16
 
 /* C3 Latency Monitor Log Page */
 #define WDC_LATENCY_MON_LOG_BUF_LEN			0x200
 #define WDC_LATENCY_MON_LOG_ID				0xC3
 #define WDC_LATENCY_MON_VERSION				0x0001
 
-#define WDC_C3_GUID_LENGTH				16
-static __u8 wdc_lat_mon_guid[WDC_C3_GUID_LENGTH] = {
+static __u8 wdc_lat_mon_guid[WDC_NVME_GUID_LENGTH] = {
 	0x92, 0x7a, 0xc0, 0x8c, 0xd0, 0x84, 0x6c, 0x9c,
 	0x70, 0x43, 0xe6, 0xd4, 0x58, 0x5e, 0xd4, 0x85
 };
@@ -566,7 +565,6 @@ enum WDC_DRIVE_ESSENTIAL_TYPE {
 	WDC_DE_TYPE_ALL                 = 0xFFFFFFF,
 };
 
-#define WDC_C0_GUID_LENGTH              16
 #define WDC_SCA_V1_NAND_STATS           0x1
 #define WDC_SCA_V1_ALL                  0xF
 enum {
@@ -622,7 +620,7 @@ enum {
 	SCAO_V1_LPG                = 496,	/* Log page GUID */
 };
 
-static __u8 ext_smart_guid[WDC_C0_GUID_LENGTH] = {
+static __u8 ext_smart_guid[WDC_NVME_GUID_LENGTH] = {
 	0x65, 0x43, 0x88, 0x78, 0xAC, 0xD8, 0x78, 0xA1,
 	0x66, 0x42, 0x1E, 0x0F, 0x92, 0xD7, 0x6D, 0xC4
 };
@@ -780,7 +778,7 @@ struct ocp_cloud_smart_log {
 	__u8 log_page_guid[16];
 };
 
-static __u8 scao_guid[WDC_C0_GUID_LENGTH] = {
+static __u8 scao_guid[WDC_NVME_GUID_LENGTH] = {
 	0xC5, 0xAF, 0x10, 0x28, 0xEA, 0xBF, 0xF2, 0xA4,
 	0x9C, 0x4F, 0x6F, 0x7C, 0xC9, 0x14, 0xD5, 0xAF
 };
@@ -796,7 +794,6 @@ enum {
 	EOL_RRER                = 108,	/* Raw Read Error Rate */
 };
 
-#define WDC_NVME_C6_GUID_LENGTH         16
 #define WDC_NVME_GET_HW_REV_LOG_OPCODE  0xc6
 #define WDC_NVME_HW_REV_LOG_PAGE_LEN    512
 
@@ -840,7 +837,7 @@ struct __packed wdc_nvme_hw_rev_log {
 	__u8  hw_rev_guid[16];      /* 496 Log Page GUID                 */
 };
 
-static __u8 hw_rev_log_guid[WDC_NVME_C6_GUID_LENGTH] = {
+static __u8 hw_rev_log_guid[WDC_NVME_GUID_LENGTH] = {
 	0xAA, 0xB0, 0x05, 0xF5, 0x13, 0x5E, 0x48, 0x15,
 	0xAB, 0x89, 0x05, 0xBA, 0x8B, 0xE2, 0xBF, 0x3C
 };
@@ -1148,14 +1145,14 @@ struct __packed wdc_bd_ca_log_format {
 	__u8	raw_value[8];
 };
 
-#define LATENCY_LOG_BUCKET_READ         3
-#define LATENCY_LOG_BUCKET_WRITE        2
-#define LATENCY_LOG_BUCKET_TRIM         1
-#define LATENCY_LOG_BUCKET_RESERVED     0
+#define WDC_LATENCY_LOG_BUCKET_READ         3
+#define WDC_LATENCY_LOG_BUCKET_WRITE        2
+#define WDC_LATENCY_LOG_BUCKET_TRIM         1
+#define WDC_LATENCY_LOG_BUCKET_RESERVED     0
 
-#define LATENCY_LOG_MEASURED_LAT_READ   2
-#define LATENCY_LOG_MEASURED_LAT_WRITE  1
-#define LATENCY_LOG_MEASURED_LAT_TRIM   0
+#define WDC_LATENCY_LOG_MEASURED_LAT_READ   2
+#define WDC_LATENCY_LOG_MEASURED_LAT_WRITE  1
+#define WDC_LATENCY_LOG_MEASURED_LAT_TRIM   0
 
 struct __packed wdc_ssd_latency_monitor_log {
 	__u8    feature_status;                         /* 0x00 */
@@ -1180,8 +1177,9 @@ struct __packed wdc_ssd_latency_monitor_log {
 	__le64  static_latency_timestamp[4][3];         /* 0x130 - 0x18F */
 	__le16  static_measured_latency[4][3];          /* 0x190 - 0x1A7 */
 	__le16  static_latency_stamp_units;             /* 0x1A8 */
-	__u8    rsvd4[0x16];                            /* 0x1AA */
+	__u8    rsvd4[10];                              /* 0x1AA */
 
+	__u8    debug_telemetry_log_size[12];           /* 0x1B4 */
 	__le16  debug_log_trigger_enable;               /* 0x1C0 */
 	__le16  debug_log_measured_latency;             /* 0x1C2 */
 	__le64  debug_log_latency_stamp;                /* 0x1C4 */
@@ -1246,11 +1244,8 @@ struct __packed wdc_ssd_d0_smart_log {
 	__u8    rsvd[408];                             /* 0x68 - 408 Reserved bytes                         */
 };
 
-#define WDC_OCP_C1_GUID_LENGTH              16
 #define WDC_ERROR_REC_LOG_BUF_LEN          512
 #define WDC_ERROR_REC_LOG_ID              0xC1
-#define WDC_ERROR_REC_LOG_VERSION1        0001
-#define WDC_ERROR_REC_LOG_VERSION2        0002
 
 struct __packed wdc_ocp_c1_error_recovery_log {
 	__le16  panic_reset_wait_time;                  /* 000 - Panic Reset Wait Time               */
@@ -1265,12 +1260,14 @@ struct __packed wdc_ocp_c1_error_recovery_log {
 	__u8    vs_cmd_to;                              /* 028 - Vendor Specific Command Timeout V2  */
 	__u8    dev_recovery_action2;                   /* 029 - Device Recovery Action 2 V2         */
 	__u8    dev_recovery_action2_to;                /* 030 - Device Recovery Action 2 Timeout V2 */
-	__u8    rsvd2[463];                             /* 031 - 463 Reserved Bytes                  */
+	__u8    panic_count;                            /* 031 - Number of panics encountered        */
+	__le64  prev_panic_ids[4];                      /* 032 - 063 Previous Panic ID's             */
+	__u8    rsvd2[430];                             /* 064 - 493 Reserved Bytes                  */
 	__le16  log_page_version;                       /* 494 - Log Page Version                    */
-	__u8    log_page_guid[WDC_OCP_C1_GUID_LENGTH];  /* 496 - Log Page GUID                       */
+	__u8    log_page_guid[WDC_NVME_GUID_LENGTH];    /* 496 - Log Page GUID                       */
 };
 
-static __u8 wdc_ocp_c1_guid[WDC_OCP_C1_GUID_LENGTH]    = { 0x44, 0xD9, 0x31, 0x21, 0xFE, 0x30, 0x34, 0xAE,
+static __u8 wdc_ocp_c1_guid[WDC_NVME_GUID_LENGTH]    = { 0x44, 0xD9, 0x31, 0x21, 0xFE, 0x30, 0x34, 0xAE,
 		0xAB, 0x4D, 0xFD, 0x3D, 0xBA, 0x83, 0x19, 0x5A };
 
 /* NAND Stats */
@@ -1380,15 +1377,14 @@ struct __packed wdc_fw_act_history_log_format_c2 {
 	struct		wdc_fw_act_history_log_entry_c2 entry[WDC_MAX_NUM_ACT_HIST_ENTRIES];
 	__u8		reserved2[2790];
 	__le16		log_page_version;
-	__u8		log_page_guid[WDC_C2_GUID_LENGTH];
+	__u8		log_page_guid[WDC_NVME_GUID_LENGTH];
 };
 
-static __u8 ocp_C2_guid[WDC_C2_GUID_LENGTH] = {
+static __u8 ocp_C2_guid[WDC_NVME_GUID_LENGTH] = {
 	0x6D, 0x79, 0x9A, 0x76, 0xB4, 0xDA, 0xF6, 0xA3,
 	0xE2, 0x4D, 0xB2, 0x8A, 0xAC, 0xF3, 0x1C, 0xD1
 };
 
-#define WDC_OCP_C4_GUID_LENGTH              16
 #define WDC_DEV_CAP_LOG_BUF_LEN           4096
 #define WDC_DEV_CAP_LOG_ID                0xC4
 #define WDC_DEV_CAP_LOG_VERSION           0001
@@ -1407,15 +1403,14 @@ struct __packed wdc_ocp_C4_dev_cap_log {
 	__u8    dssd_ps_descr[WDC_OCP_C4_NUM_PS_DESCR];/* 0017 - DSSD Power State Descriptors        */
 	__u8    rsvd2[3934];                           /* 0144 - Reserved must be cleared to zero    */
 	__le16  log_page_version;                      /* 4078 - Log Page Version                    */
-	__u8    log_page_guid[WDC_OCP_C4_GUID_LENGTH]; /* 4080 - Log Page GUID                       */
+	__u8    log_page_guid[WDC_NVME_GUID_LENGTH];   /* 4080 - Log Page GUID                       */
 };
 
-static __u8 wdc_ocp_c4_guid[WDC_OCP_C4_GUID_LENGTH]  = {
+static __u8 wdc_ocp_c4_guid[WDC_NVME_GUID_LENGTH]  = {
 	0x97, 0x42, 0x05, 0x0D, 0xD1, 0xE1, 0xC9, 0x98,
 	0x5D, 0x49, 0x58, 0x4B, 0x91, 0x3C, 0x05, 0xB7
 };
 
-#define WDC_OCP_C5_GUID_LENGTH              16
 #define WDC_UNSUPPORTED_REQS_LOG_BUF_LEN  4096
 #define WDC_UNSUPPORTED_REQS_LOG_ID       0xC5
 #define WDC_UNSUPPORTED_REQS_LOG_VERSION  0001
@@ -1427,10 +1422,10 @@ struct __packed wdc_ocp_C5_unsupported_reqs {
 	__u8    unsupported_req_list[WDC_NUM_UNSUPPORTED_REQ_ENTRIES][16];  /* 0016 - Unsupported Requirements List */
 	__u8    rsvd2[14];                             /* 4064 - Reserved must be cleared to zero                   */
 	__le16  log_page_version;                      /* 4078 - Log Page Version                                   */
-	__u8    log_page_guid[WDC_OCP_C5_GUID_LENGTH]; /* 4080 - Log Page GUID                                      */
+	__u8    log_page_guid[WDC_NVME_GUID_LENGTH];   /* 4080 - Log Page GUID                                      */
 };
 
-static __u8 wdc_ocp_c5_guid[WDC_OCP_C5_GUID_LENGTH]    = { 0x2F, 0x72, 0x9C, 0x0E, 0x99, 0x23, 0x2C, 0xBB,
+static __u8 wdc_ocp_c5_guid[WDC_NVME_GUID_LENGTH] = { 0x2F, 0x72, 0x9C, 0x0E, 0x99, 0x23, 0x2C, 0xBB,
 		0x63, 0x48, 0x32, 0xD0, 0xB7, 0x98, 0xBB, 0xC7 };
 
 #define WDC_REASON_INDEX_MAX                    16
@@ -4681,20 +4676,32 @@ static int wdc_print_latency_monitor_log_normal(struct nvme_dev *dev,
 	printf("  Active Latency Minimum Window      %d ms\n", 100*log_data->active_latency_min_window);
 	printf("  Active Latency Stamp Units         %d\n", le16_to_cpu(log_data->active_latency_stamp_units));
 	printf("  Static Latency Stamp Units         %d\n", le16_to_cpu(log_data->static_latency_stamp_units));
-	printf("  Debug Log Trigger Enable           %d\n", le16_to_cpu(log_data->debug_log_trigger_enable));
+	if (le16_to_cpu(log_data->log_page_version) >= 4) {
+		printf("  Debug Telemetry Log Size           %ld \n",
+			le64_to_cpu(*(uint64_t *)log_data->debug_telemetry_log_size));
+	}
+	printf("  Debug Log Trigger Enable           %d\n",
+		le16_to_cpu(log_data->debug_log_trigger_enable));
+	printf("  Log Page Version                   %d \n",
+		le16_to_cpu(log_data->log_page_version));
+	printf("  Log page GUID			     0x");
+	for (j = 0; j < WDC_NVME_GUID_LENGTH; j++) {
+		printf("%x", log_data->log_page_guid[j]);
+	}
+	printf("\n");
 
 	printf("                                                            Read                           Write                 Deallocate/Trim\n");
 	for (i = 0; i <= 3; i++)
 		printf("  Active Bucket Counter: Bucket %d    %27d     %27d     %27d\n",
-		       i, le32_to_cpu(log_data->active_bucket_counter[i][LATENCY_LOG_BUCKET_READ]),
-		       le32_to_cpu(log_data->active_bucket_counter[i][LATENCY_LOG_BUCKET_WRITE]),
-		       le32_to_cpu(log_data->active_bucket_counter[i][LATENCY_LOG_BUCKET_TRIM]));
+			i, le32_to_cpu(log_data->active_bucket_counter[i][WDC_LATENCY_LOG_BUCKET_READ]),
+			le32_to_cpu(log_data->active_bucket_counter[i][WDC_LATENCY_LOG_BUCKET_WRITE]),
+			le32_to_cpu(log_data->active_bucket_counter[i][WDC_LATENCY_LOG_BUCKET_TRIM]));
 
 	for (i = 3; i >= 0; i--)
 		printf("  Active Measured Latency: Bucket %d  %27d ms  %27d ms  %27d ms\n",
-		       3-i, le16_to_cpu(log_data->active_measured_latency[i][LATENCY_LOG_MEASURED_LAT_READ]),
-		       le16_to_cpu(log_data->active_measured_latency[i][LATENCY_LOG_MEASURED_LAT_WRITE]),
-		       le16_to_cpu(log_data->active_measured_latency[i][LATENCY_LOG_MEASURED_LAT_TRIM]));
+			3-i, le16_to_cpu(log_data->active_measured_latency[i][WDC_LATENCY_LOG_MEASURED_LAT_READ]),
+			le16_to_cpu(log_data->active_measured_latency[i][WDC_LATENCY_LOG_MEASURED_LAT_WRITE]),
+			le16_to_cpu(log_data->active_measured_latency[i][WDC_LATENCY_LOG_MEASURED_LAT_TRIM]));
 
 	for (i = 3; i >= 0; i--) {
 		printf("  Active Latency Time Stamp: Bucket %d    ", 3-i);
@@ -4711,15 +4718,15 @@ static int wdc_print_latency_monitor_log_normal(struct nvme_dev *dev,
 
 	for (i = 0; i <= 3; i++)
 		printf("  Static Bucket Counter: Bucket %d    %27d     %27d     %27d\n",
-		       i, le32_to_cpu(log_data->static_bucket_counter[i][LATENCY_LOG_BUCKET_READ]),
-		       le32_to_cpu(log_data->static_bucket_counter[i][LATENCY_LOG_BUCKET_WRITE]),
-		       le32_to_cpu(log_data->static_bucket_counter[i][LATENCY_LOG_BUCKET_TRIM]));
+			i, le32_to_cpu(log_data->static_bucket_counter[i][WDC_LATENCY_LOG_BUCKET_READ]),
+			le32_to_cpu(log_data->static_bucket_counter[i][WDC_LATENCY_LOG_BUCKET_WRITE]),
+			le32_to_cpu(log_data->static_bucket_counter[i][WDC_LATENCY_LOG_BUCKET_TRIM]));
 
 	for (i = 3; i >= 0; i--)
 		printf("  Static Measured Latency: Bucket %d  %27d ms  %27d ms  %27d ms\n",
-		       3-i, le16_to_cpu(log_data->static_measured_latency[i][LATENCY_LOG_MEASURED_LAT_READ]),
-		       le16_to_cpu(log_data->static_measured_latency[i][LATENCY_LOG_MEASURED_LAT_WRITE]),
-		       le16_to_cpu(log_data->static_measured_latency[i][LATENCY_LOG_MEASURED_LAT_TRIM]));
+			3-i, le16_to_cpu(log_data->static_measured_latency[i][WDC_LATENCY_LOG_MEASURED_LAT_READ]),
+			le16_to_cpu(log_data->static_measured_latency[i][WDC_LATENCY_LOG_MEASURED_LAT_WRITE]),
+			le16_to_cpu(log_data->static_measured_latency[i][WDC_LATENCY_LOG_MEASURED_LAT_TRIM]));
 
 	for (i = 3; i >= 0; i--) {
 		printf("  Static Latency Time Stamp: Bucket %d    ", 3-i);
@@ -4755,7 +4762,19 @@ static void wdc_print_latency_monitor_log_json(struct wdc_ssd_latency_monitor_lo
 	json_object_add_value_int(root, "Active Lantency Minimum Window", 100*log_data->active_latency_min_window);
 	json_object_add_value_int(root, "Active Latency Stamp Units", le16_to_cpu(log_data->active_latency_stamp_units));
 	json_object_add_value_int(root, "Static Latency Stamp Units", le16_to_cpu(log_data->static_latency_stamp_units));
+	if (le16_to_cpu(log_data->log_page_version) >= 4) {
+		json_object_add_value_int(root, "Debug Telemetry Log Size",
+		le64_to_cpu(*(uint64_t *)log_data->debug_telemetry_log_size));
+	}
 	json_object_add_value_int(root, "Debug Log Trigger Enable", le16_to_cpu(log_data->debug_log_trigger_enable));
+	json_object_add_value_int(root, "Log Page Version", le16_to_cpu(log_data->log_page_version));
+
+	char guid[40];
+	memset((void*)guid, 0, 40);
+	sprintf((char*)guid, "0x%"PRIx64"%"PRIx64"",
+		(uint64_t)le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[8]),
+		(uint64_t)le64_to_cpu(*(uint64_t *)&log_data->log_page_guid[0]));
+	json_object_add_value_string(root, "Log page GUID", guid);
 
 	for (i = 0; i <= 3; i++) {
 		for (j = 2; j >= 0; j--) {
@@ -4814,20 +4833,32 @@ static void wdc_print_error_rec_log_normal(struct wdc_ocp_c1_error_recovery_log 
 	printf("  Vendor Specific Recovery Opcode   : 0x%x\n", log_data->vs_recovery_opc);
 	printf("  Vendor Specific Command CDW12     : 0x%x\n", le32_to_cpu(log_data->vs_cmd_cdw12));
 	printf("  Vendor Specific Command CDW13     : 0x%x\n", le32_to_cpu(log_data->vs_cmd_cdw13));
-	if (le16_to_cpu(log_data->log_page_version) == WDC_ERROR_REC_LOG_VERSION2) {
-		printf("  Vendor Specific Command Timeout   : 0x%x\n", log_data->vs_cmd_to);
-		printf("  Device Recovery Action 2          : 0x%x\n", log_data->dev_recovery_action2);
-		printf("  Device Recovery Action 2 Timeout  : 0x%x\n", log_data->dev_recovery_action2_to);
+	if (le16_to_cpu(log_data->log_page_version) >= 2) {
+		printf("  Vendor Specific Command Timeout   : 0x%x\n",
+			log_data->vs_cmd_to);
+		printf("  Device Recovery Action 2          : 0x%x\n",
+			log_data->dev_recovery_action2);
+		printf("  Device Recovery Action 2 Timeout  : 0x%x\n",
+			log_data->dev_recovery_action2_to);
 	}
-	printf("  Log Page Version                  : 0x%x\n", le16_to_cpu(log_data->log_page_version));
-	printf("  Log page GUID			    : 0x");
-	for (j = 0; j < WDC_OCP_C1_GUID_LENGTH; j++)
+	if (le16_to_cpu(log_data->log_page_version) >= 3) {
+		printf("  Panic Count                       : 0x%x \n", log_data->panic_count);
+		for (j = 0; j < 4; j++)
+			printf("  Previous Panic ID N-%d            : 0x%llx \n",
+				j+1, log_data->prev_panic_ids[j]);
+	}
+	printf("  Log Page Version                  : 0x%x\n",
+		le16_to_cpu(log_data->log_page_version));
+	printf("  Log page GUID                     : 0x");
+	for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 		printf("%x", log_data->log_page_guid[j]);
 	printf("\n");
 }
 
 static void wdc_print_error_rec_log_json(struct wdc_ocp_c1_error_recovery_log *log_data)
 {
+	int j;
+	char	buf[128];
 	struct json_object *root = json_create_object();
 
 	json_object_add_value_int(root, "Panic Reset Wait Time", le16_to_cpu(log_data->panic_reset_wait_time));
@@ -4838,10 +4869,20 @@ static void wdc_print_error_rec_log_json(struct wdc_ocp_c1_error_recovery_log *l
 	json_object_add_value_int(root, "Vendor Specific Recovery Opcode", log_data->vs_recovery_opc);
 	json_object_add_value_int(root, "Vendor Specific Command CDW12", le32_to_cpu(log_data->vs_cmd_cdw12));
 	json_object_add_value_int(root, "Vendor Specific Command CDW13", le32_to_cpu(log_data->vs_cmd_cdw13));
-	if (le16_to_cpu(log_data->log_page_version) == WDC_ERROR_REC_LOG_VERSION2) {
-		json_object_add_value_int(root, "Vendor Specific Command Timeout", log_data->vs_cmd_to);
-		json_object_add_value_int(root, "Device Recovery Action 2", log_data->dev_recovery_action2);
-		json_object_add_value_int(root, "Device Recovery Action 2 Timeout", log_data->dev_recovery_action2_to);
+	if (le16_to_cpu(log_data->log_page_version) >= 2) {
+		json_object_add_value_int(root, "Vendor Specific Command Timeout",
+			log_data->vs_cmd_to);
+		json_object_add_value_int(root, "Device Recovery Action 2",
+			log_data->dev_recovery_action2);
+		json_object_add_value_int(root, "Device Recovery Action 2 Timeout",
+			log_data->dev_recovery_action2_to);
+	}
+	if (le16_to_cpu(log_data->log_page_version) >= 3) {
+		json_object_add_value_int(root, "Panic Count", log_data->panic_count);
+		for (j = 0; j < 4; j++) {
+			sprintf(buf, "Previous Panic ID N-%d", j+1);
+			json_object_add_value_int(root, buf, le64_to_cpu(log_data->prev_panic_ids[j]));
+		}
 	}
 	json_object_add_value_int(root, "Log Page Version", le16_to_cpu(log_data->log_page_version));
 
@@ -4879,7 +4920,7 @@ static void wdc_print_dev_cap_log_normal(struct wdc_ocp_C4_dev_cap_log *log_data
 
 	printf("  Log Page Version			: 0x%x\n", le16_to_cpu(log_data->log_page_version));
 	printf("  Log page GUID				: 0x");
-	for (j = 0; j < WDC_OCP_C4_GUID_LENGTH; j++)
+	for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 		printf("%x", log_data->log_page_guid[j]);
 	printf("\n");
 }
@@ -4936,7 +4977,7 @@ static void wdc_print_unsupported_reqs_log_normal(struct wdc_ocp_C5_unsupported_
 
 	printf("  Log Page Version			: 0x%x\n", le16_to_cpu(log_data->log_page_version));
 	printf("  Log page GUID				: 0x");
-	for (j = 0; j < WDC_OCP_C5_GUID_LENGTH; j++)
+	for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 		printf("%x", log_data->log_page_guid[j]);
 	printf("\n");
 }
@@ -5908,16 +5949,16 @@ static int nvme_get_ext_smart_cloud_log(int fd, __u8 **data, int uuid_index, __u
 
 	if (!ret) {
 		/* Verify GUID matches */
-		for (i = 0; i < WDC_C0_GUID_LENGTH; i++) {
+		for (i = 0; i < WDC_NVME_GUID_LENGTH; i++) {
 			if (ext_smart_guid[i] != *&log_ptr[SCAO_V1_LPG + i]) {
 				fprintf(stderr, "ERROR: WDC: Unknown GUID in C0 Log Page V1 data\n");
 				int j;
 
 				fprintf(stderr, "ERROR: WDC: Expected GUID:  0x");
-				for (j = 0; j < WDC_C0_GUID_LENGTH; j++)
+				for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 					fprintf(stderr, "%x", ext_smart_guid[j]);
 				fprintf(stderr, "\nERROR: WDC: Actual GUID:    0x");
-				for (j = 0; j < WDC_C0_GUID_LENGTH; j++)
+				for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 					fprintf(stderr, "%x", *&log_ptr[SCAO_V1_LPG + j]);
 				fprintf(stderr, "\n");
 
@@ -5966,16 +6007,16 @@ static int nvme_get_hw_rev_log(int fd, __u8 **data, int uuid_index, __u32 namesp
 
 	if (!ret) {
 		/* Verify GUID matches */
-		for (i = 0; i < WDC_NVME_C6_GUID_LENGTH; i++) {
+		for (i = 0; i < WDC_NVME_GUID_LENGTH; i++) {
 			if (hw_rev_log_guid[i] != log_ptr->hw_rev_guid[i]) {
 				fprintf(stderr, "ERROR: WDC: Unknown GUID in HW Revision Log Page data\n");
 				int j;
 
 				fprintf(stderr, "ERROR: WDC: Expected GUID:  0x");
-				for (j = 0; j < WDC_NVME_C6_GUID_LENGTH; j++)
+				for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 					fprintf(stderr, "%x", hw_rev_log_guid[j]);
 				fprintf(stderr, "\nERROR: WDC: Actual GUID:    0x");
-				for (j = 0; j < WDC_NVME_C6_GUID_LENGTH; j++)
+				for (j = 0; j < WDC_NVME_GUID_LENGTH; j++)
 					fprintf(stderr, "%x", log_ptr->hw_rev_guid[j]);
 				fprintf(stderr, "\n");
 
@@ -6418,7 +6459,7 @@ static void wdc_print_ext_smart_cloud_log_normal(void *data, int mask)
 		printf("  Log Page Version (Int) : %d\n",
 			le16_to_cpu(ext_smart_log_ptr->ext_smart_lpv));
 		printf("  Log page GUID	(Hex) : 0x");
-		for (i = WDC_C0_GUID_LENGTH; i > 0; i--)
+		for (i = WDC_NVME_GUID_LENGTH; i > 0; i--)
 			printf("%02x", ext_smart_log_ptr->ext_smart_lpg[i-1]);
 		printf("\n");
 	}
@@ -7587,15 +7628,16 @@ static int wdc_get_ocp_c1_log_page(nvme_root_t r, struct nvme_dev *dev, char *fo
 		log_data = (struct wdc_ocp_c1_error_recovery_log *)data;
 
 		/* check log page version */
-		if ((log_data->log_page_version != WDC_ERROR_REC_LOG_VERSION1) &&
-			(log_data->log_page_version != WDC_ERROR_REC_LOG_VERSION2)) {
-			fprintf(stderr, "ERROR: WDC: invalid error recovery log version - %d\n", log_data->log_page_version);
+		if ((log_data->log_page_version < 1) ||
+			(log_data->log_page_version > 3)) {
+			fprintf(stderr, "ERROR: WDC: invalid error recovery log version - %d\n",
+				log_data->log_page_version);
 			ret = -1;
 			goto out;
 		}
 
 		/* Verify GUID matches */
-		for (i = 0; i < WDC_OCP_C1_GUID_LENGTH; i++) {
+		for (i = 0; i < WDC_NVME_GUID_LENGTH; i++) {
 			if (wdc_ocp_c1_guid[i] != log_data->log_page_guid[i]) {
 				fprintf(stderr, "ERROR: WDC: Unknown GUID in C1 Log Page data\n");
 				int j;
@@ -7665,7 +7707,7 @@ static int wdc_get_ocp_c4_log_page(nvme_root_t r, struct nvme_dev *dev, char *fo
 		}
 
 		/* Verify GUID matches */
-		for (i = 0; i < WDC_OCP_C4_GUID_LENGTH; i++) {
+		for (i = 0; i < WDC_NVME_GUID_LENGTH; i++) {
 			if (wdc_ocp_c4_guid[i] != log_data->log_page_guid[i]) {
 				fprintf(stderr, "ERROR: WDC: Unknown GUID in C4 Log Page data\n");
 				int j;
@@ -7735,7 +7777,7 @@ static int wdc_get_ocp_c5_log_page(nvme_root_t r, struct nvme_dev *dev, char *fo
 		}
 
 		/* Verify GUID matches */
-		for (i = 0; i < WDC_OCP_C5_GUID_LENGTH; i++) {
+		for (i = 0; i < WDC_NVME_GUID_LENGTH; i++) {
 			if (wdc_ocp_c5_guid[i] != log_data->log_page_guid[i]) {
 				fprintf(stderr, "ERROR: WDC: Unknown GUID in C5 Log Page data\n");
 				int j;
@@ -9053,7 +9095,7 @@ static int wdc_get_fw_act_history_C2(nvme_root_t r, struct nvme_dev *dev,
 
 		c2GuidMatch = !memcmp(ocp_C2_guid,
 				fw_act_history_log->log_page_guid,
-				WDC_C2_GUID_LENGTH);
+				WDC_NVME_GUID_LENGTH);
 
 		if (c2GuidMatch) {
 			/* parse the data */
