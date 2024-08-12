@@ -382,7 +382,7 @@ struct telemetry_stats_desc {
 	__u8 data[];
 };
 
-struct telemetry_event_desc {
+struct __packed telemetry_event_desc {
 	__u8 class;
 	__le16 id;
 	__u8 size;
