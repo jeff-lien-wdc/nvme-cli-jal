@@ -990,6 +990,7 @@ static int get_telemetry_data(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
 	cmd.cdw14 = 0;
 	return nvme_submit_admin_passthru(dev_fd(dev), &cmd, NULL);
 }
+
 static void print_telemetry_data_area_1(struct telemetry_data_area_1 *da1,
 										int tele_type)
 {
@@ -1075,13 +1076,13 @@ static void print_telemetry_da_stat(struct telemetry_stats_desc *da_stat,
 	}
 }
 static void print_telemetry_da_fifo(struct telemetry_event_desc *da_fifo,
-		__le64 buf_size,
+		__u64 buf_size,
 		int tele_type,
 		int da,
 		int index)
 {
 	if (da_fifo) {
-		unsigned int i = 0;
+		__u64 i = 0;
 		struct telemetry_event_desc *next_da_fifo = da_fifo;
 
 		if (tele_type == TELEMETRY_TYPE_HOST)
@@ -1091,15 +1092,18 @@ static void print_telemetry_da_fifo(struct telemetry_event_desc *da_fifo,
 			printf("====== Telemetry Controller Data area %d Event FIFO %d ======\n",
 				da, index);
 
-
 		while ((i + 4) < buf_size) {
+			/* break if last entry  */
+			if (next_da_fifo->class == 0)
+				break;
+
 			/* Print Event Data */
 			print_telemetry_fifo_event(next_da_fifo->class, /* Event class type */
 				next_da_fifo->id,                           /* Event ID         */
 				next_da_fifo->size,                         /* Event data size  */
 				(__u8 *)&next_da_fifo->data);               /* Event data       */
 
-			i += (4 + (next_da_fifo->size * 4));
+			i += (next_da_fifo->size * 4);
 			next_da_fifo = (struct telemetry_event_desc *)((__u64)da_fifo + i);
 		}
 		printf("===============================================\n\n");
@@ -1325,6 +1329,8 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 
 			char *da1_fifo = calloc(da1_sz, sizeof(char));
 
+			printf("Get DA 1 FIFO addr: %p, offset 0x%llx \n",
+					da1_fifo, da1_off);
 			err = get_telemetry_data(dev, nsid, tele_type,
 					(da1->event_fifos[i].size) * 4,
 					(void *)da1_fifo, lsp, rae, da1_off);
@@ -1818,6 +1824,7 @@ static int ocp_telemetry_log(int argc, char **argv, struct command *cmd,
 		}
 	} else {
 		tele_type = TELEMETRY_TYPE_HOST; //Default Type - Host
+		opt.telemetry_type = "host";
 		nvme_show_result("Missing telemetry-type. Using default - host.\n");
 	}
 
