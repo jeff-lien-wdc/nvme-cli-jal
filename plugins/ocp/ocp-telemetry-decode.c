@@ -732,13 +732,18 @@ void parse_nvme_event(struct nvme_ocp_telemetry_event_descriptor *pevent_descrip
 {
 	struct nvme_ocp_nvme_dbg_evt_class_format *pnvme_event =
 				(struct nvme_ocp_nvme_dbg_evt_class_format *) pevent_specific_data;
-	int vu_event_id = (int) pnvme_event->vu_event_identifier;
-	unsigned int data_size = ((pevent_descriptor->event_data_size *
-	SIZE_OF_DWORD) - sizeof(struct nvme_ocp_nvme_dbg_evt_class_format));
-	__u8 *pdata = (__u8 *) pnvme_event + sizeof(struct nvme_ocp_nvme_dbg_evt_class_format);
+	int vu_event_id = 0;
+	unsigned int vu_data_size = ((pevent_descriptor->event_data_size *
+			SIZE_OF_DWORD) - sizeof(struct nvme_ocp_nvme_dbg_evt_class_format));
+	__u8 *pdata = NULL;
 	char description_str[256] = "";
 
-	parse_ocp_telemetry_string_log(0, pnvme_event->vu_event_identifier,
+	if (vu_data_size) {
+		vu_event_id = *(int *)(&pnvme_event + sizeof(struct nvme_ocp_nvme_dbg_evt_class_format));
+		pdata = (__u8 *) pnvme_event + sizeof(struct nvme_ocp_nvme_dbg_evt_class_format) + 2;
+	}
+
+	parse_ocp_telemetry_string_log(0, vu_event_id,
 				       pevent_descriptor->debug_event_class_type, VU_EVENT_STRING,
 				       description_str);
 
@@ -750,20 +755,20 @@ void parse_nvme_event(struct nvme_ocp_telemetry_event_descriptor *pevent_descrip
 		json_object_add_value_string(pevent_descriptor_obj, STR_VU_EVENT_STRING,
 					     description_str);
 		json_add_formatted_var_size_str(pevent_descriptor_obj, STR_VU_DATA, pdata,
-						data_size);
+						vu_data_size);
 	} else {
 		if (fp) {
 			print_formatted_var_size_str(STR_CLASS_SPECIFIC_DATA,
 					     pnvme_event->nvmeDebugEventData, DATA_SIZE_8, fp);
 			fprintf(fp, "%s: 0x%x\n", STR_VU_EVENT_ID_STRING, vu_event_id);
 			fprintf(fp, "%s: %s\n", STR_VU_EVENT_STRING, description_str);
-			print_formatted_var_size_str(STR_VU_DATA, pdata, data_size, fp);
+			print_formatted_var_size_str(STR_VU_DATA, pdata, vu_data_size, fp);
 		} else {
 			print_formatted_var_size_str(STR_CLASS_SPECIFIC_DATA,
 					      pnvme_event->nvmeDebugEventData, DATA_SIZE_8, fp);
 			printf("%s: 0x%x\n", STR_VU_EVENT_ID_STRING, vu_event_id);
 			printf("%s: %s\n", STR_VU_EVENT_STRING, description_str);
-			print_formatted_var_size_str(STR_VU_DATA, pdata, data_size, fp);
+			print_formatted_var_size_str(STR_VU_DATA, pdata, vu_data_size, fp);
 		}
 	}
 }
@@ -897,6 +902,8 @@ int parse_event_fifo(unsigned int fifo_num, unsigned char *pfifo_start,
 			(struct nvme_ocp_telemetry_event_descriptor *)
 			(pfifo_start + offset_to_move);
 
+		printf("pevent_descriptor: %p offset_to_move: 0x%x, fifo_size: 0x%llx\n",
+			pevent_descriptor, offset_to_move, fifo_size);
 		if (pevent_descriptor != NULL && pevent_descriptor->event_data_size >= 0) {
 			//Data is present in the form of DWORDS, So multiplying with sizeof(DWORD)
 			unsigned int data_size = pevent_descriptor->event_data_size *
@@ -1243,9 +1250,16 @@ int print_ocp_telemetry_normal(struct ocp_telemetry_parse_options *options)
 			fprintf(fp, STR_LINE);
 			fprintf(fp, "%s\n", STR_LOG_PAGE_HEADER);
 			fprintf(fp, STR_LINE);
-			if (!strcmp(options->telemetry_type, "host"))
-				generic_structure_parser(ptelemetry_buffer, host_log_page_header,
-					ARRAY_SIZE(host_log_page_header), NULL, 0, fp);
+			if (!strcmp(options->telemetry_type, "host")) {
+				printf("1 ptelemetry_buffer %p, host_log_page_header %p, array size %ld\n",
+						ptelemetry_buffer, host_log_page_header, ARRAY_SIZE(host_log_page_header));
+				if ((ptelemetry_buffer == NULL) ||
+					(ARRAY_SIZE(host_log_page_header) == 0))
+					printf("skip generic_structure_parser\n");
+				else
+					generic_structure_parser(ptelemetry_buffer, host_log_page_header,
+							ARRAY_SIZE(host_log_page_header), NULL, 0, fp);
+			}
 			else if (!strcmp(options->telemetry_type, "controller"))
 				generic_structure_parser(ptelemetry_buffer,
 					controller_log_page_header,
@@ -1352,9 +1366,17 @@ int print_ocp_telemetry_normal(struct ocp_telemetry_parse_options *options)
 		printf(STR_LINE);
 		printf("%s\n", STR_LOG_PAGE_HEADER);
 		printf(STR_LINE);
-		if (!strcmp(options->telemetry_type, "host"))
-			generic_structure_parser(ptelemetry_buffer, host_log_page_header,
-					     ARRAY_SIZE(host_log_page_header), NULL, 0, NULL);
+		if (!strcmp(options->telemetry_type, "host")) {
+			printf("2 ptelemetry_buffer %p, host_log_page_header %p, array size %ld\n",
+					ptelemetry_buffer, host_log_page_header, ARRAY_SIZE(host_log_page_header));
+			if ((ptelemetry_buffer == NULL) ||
+				(ARRAY_SIZE(host_log_page_header) == 0))
+				printf("skip generic_structure_parser\n");
+			else {
+				generic_structure_parser(ptelemetry_buffer, host_log_page_header,
+					ARRAY_SIZE(host_log_page_header), NULL, 0, NULL);
+			}
+		}
 		else if (!strcmp(options->telemetry_type, "controller"))
 			generic_structure_parser(ptelemetry_buffer, controller_log_page_header,
 				     ARRAY_SIZE(controller_log_page_header), NULL, 0, NULL);
@@ -1365,7 +1387,7 @@ int print_ocp_telemetry_normal(struct ocp_telemetry_parse_options *options)
 		__u8 *preason_identifier_offset = ptelemetry_buffer +
 			offsetof(struct nvme_ocp_telemetry_host_initiated_header, reason_id);
 		generic_structure_parser(preason_identifier_offset, reason_identifier,
-				     ARRAY_SIZE(reason_identifier), NULL, 0, NULL);
+			ARRAY_SIZE(reason_identifier), NULL, 0, NULL);
 
 		printf(STR_LINE);
 		printf("%s\n", STR_TELEMETRY_HOST_DATA_BLOCK_1);
@@ -1384,7 +1406,7 @@ int print_ocp_telemetry_normal(struct ocp_telemetry_parse_options *options)
 		__u8 *pda1_header_offset = ptelemetry_buffer + offsets.da1_start_offset;//512
 
 		generic_structure_parser(pda1_header_offset, ocp_header_in_da1,
-				     ARRAY_SIZE(ocp_header_in_da1), NULL, 0, NULL);
+			ARRAY_SIZE(ocp_header_in_da1), NULL, 0, NULL);
 
 		printf(STR_LINE);
 		printf("%s\n", STR_SMART_HEALTH_INFO);
@@ -1393,7 +1415,7 @@ int print_ocp_telemetry_normal(struct ocp_telemetry_parse_options *options)
 			offsetof(struct nvme_ocp_header_in_da1, smart_health_info);
 
 		generic_structure_parser(pda1_smart_offset, smart, ARRAY_SIZE(smart), NULL, 0,
-					 NULL);
+			NULL);
 
 		printf(STR_LINE);
 		printf("%s\n", STR_SMART_HEALTH_INTO_EXTENDED);
@@ -1402,7 +1424,7 @@ int print_ocp_telemetry_normal(struct ocp_telemetry_parse_options *options)
 			offsetof(struct nvme_ocp_header_in_da1, smart_health_info_extended);
 
 		generic_structure_parser(pda1_smart_ext_offset, smart_extended,
-				     ARRAY_SIZE(smart_extended), NULL, 0, NULL);
+			ARRAY_SIZE(smart_extended), NULL, 0, NULL);
 
 		printf(STR_LINE);
 		printf("%s\n", STR_DA_1_STATS);

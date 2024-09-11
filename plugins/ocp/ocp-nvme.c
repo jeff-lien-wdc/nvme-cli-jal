@@ -964,7 +964,7 @@ static int get_telemetry_data(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
 							  __u64 offset)
 {
 	int ret = 0;
-	char *telemetry_data = "/root/git-repos/nvme-cli-jal/OCP2-5-telemetry-onlyDA1.bin";
+	char *telemetry_data = "/root/git-repos/nvme-cli-jal/ocp-2.5-telemetry-dbg.bin";
 	//int i;
 	//char *bytes = (char *)data;
 	FILE *fptr;
@@ -1265,8 +1265,7 @@ static int get_telemetry_dump(struct nvme_dev *dev, char *filename, char *sn,
 
 	/* Get the telemetry data */
 	err = get_telemetry_data(dev, nsid, tele_type, TELEMETRY_DATA_SIZE,
-//				(void *)data1, lsp, rae, 512);
-	            (void *)data1, lsp, rae, 0);  // jal read DA1 file with no header
+				(void *)data1, lsp, rae, 512);
 	if (err) {
 		printf("get_telemetry_data failed for type: 0x%x, err: %d.\n", tele_type, err);
 		return err;
@@ -1746,7 +1745,7 @@ int parse_ocp_telemetry_log(struct ocp_telemetry_parse_options *options)
 							  &string_buffer_size, 1);
 			if (pstring_buffer == NULL) {
 				nvme_show_error("Failed to read string-log.\n");
-				return -1;
+				//return -1;  jal debug
 			}
 		}
 	} else {
@@ -1856,6 +1855,7 @@ static int ocp_telemetry_log(int argc, char **argv, struct command *cmd,
 		}
 	} else {
 		tele_type = TELEMETRY_TYPE_HOST; //Default Type - Host
+		opt.telemetry_type = "host";
 		nvme_show_result("Missing telemetry-type. Using default - host.\n");
 	}
 

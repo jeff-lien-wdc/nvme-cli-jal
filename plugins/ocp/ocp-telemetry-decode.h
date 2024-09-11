@@ -868,7 +868,7 @@ struct __packed nvme_ocp_pcie_dbg_evt_class_format
 struct __packed nvme_ocp_nvme_dbg_evt_class_format
 {
 	__u8 nvmeDebugEventData[DATA_SIZE_8];     // Bytes 11:4
-	__le16 vu_event_identifier;               // Bytes 13:12
+	//__le16 vu_event_identifier;               // Bytes 13:12
 };
 
 struct __packed nvme_ocp_common_dbg_evt_class_format
