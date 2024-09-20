@@ -963,43 +963,6 @@ static int get_telemetry_data(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
 							  __u32 data_len, void *data, __u8 nLSP, __u8 nRAE,
 							  __u64 offset)
 {
-	int ret = 0;
-	char *telemetry_data = "/root/git-repos/nvme-cli-jal/ocp-2.5-telemetry-dbg.bin";
-	//int i;
-	//char *bytes = (char *)data;
-	FILE *fptr;
-
-	fptr = fopen(telemetry_data, "rb");
-	if (fptr == NULL) {
-		fprintf(stderr, "ERROR: WDC: %s : Open telemetry data file failed\n", __func__);
-		return -1;
-	}
-
-	fseek(fptr, offset, SEEK_SET);
-
-    ret = fread(data, data_len, 1, fptr);
-    fclose(fptr);
-
-	if (ret) {
-		printf("Telemetry Data File, data ptr: %p, length: 0x%x, offset: 0x%llx, ret: 0x%x\n",
-			data, data_len, offset, ret);
-/*
-		i = 0;
-		while (i < 64) {
-			printf("0x%02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X %02X%02X%02X%02X\n",
-					bytes[i++], bytes[i++], bytes[i++], bytes[i++],
-					bytes[i++], bytes[i++], bytes[i++], bytes[i++],
-					bytes[i++], bytes[i++], bytes[i++], bytes[i++],
-					bytes[i++], bytes[i++], bytes[i++], bytes[i++]);
-		}
-		*/
-	}
-	else
-		printf("No data read from Telemetry Data File\n");
-
-	return 0;
-
-#if 0
 	struct nvme_passthru_cmd cmd = {
 		.opcode = nvme_admin_get_log_page,
 		.nsid = ns,
@@ -1019,8 +982,8 @@ static int get_telemetry_data(struct nvme_dev *dev, __u32 ns, __u8 tele_type,
 	cmd.cdw13 = (__u32)((0xFFFFFFFF00000000 & offset) >> 8);
 	cmd.cdw14 = 0;
 	return nvme_submit_admin_passthru(dev_fd(dev), &cmd, NULL);
-#endif
 }
+
 static void print_telemetry_data_area_1(struct telemetry_data_area_1 *da1,
 										int tele_type)
 {
@@ -1745,7 +1708,7 @@ int parse_ocp_telemetry_log(struct ocp_telemetry_parse_options *options)
 							  &string_buffer_size, 1);
 			if (pstring_buffer == NULL) {
 				nvme_show_error("Failed to read string-log.\n");
-				//return -1;  jal debug
+				return -1;
 			}
 		}
 	} else {
