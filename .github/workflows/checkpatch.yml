@@ -1,9 +1,13 @@
 name: checkpatch review
-on: [pull_request]
+on:
+  push:
+  pull_request:
 jobs:
   checkpatch:
     name: checkpatch review
-    runs-on: ubuntu-latest
+    runs-on: 
+      group: rochester-lab
+      labels: [self-hosted]
     steps:
     - name: 'Calculate PR commits + 1'
       run: echo "PR_FETCH_DEPTH=$(( ${{ github.event.pull_request.commits }} + 1 ))" >> $GITHUB_ENV
