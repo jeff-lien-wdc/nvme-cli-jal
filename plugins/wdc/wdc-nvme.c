@@ -141,6 +141,10 @@
 #define WDC_NVME_SN810_DEV_ID				0x5011
 #define WDC_NVME_SN820CL_DEV_ID				0x5037
 
+#define WDC_NVME_SN5100S_DEV_ID_1			0x5061
+#define WDC_NVME_SN5100S_DEV_ID_2			0x5062
+#define WDC_NVME_SN5100S_DEV_ID_3			0x5063
+
 #define WDC_DRIVE_CAP_CAP_DIAG				0x0000000000000001
 #define WDC_DRIVE_CAP_INTERNAL_LOG			0x0000000000000002
 #define WDC_DRIVE_CAP_C1_LOG_PAGE			0x0000000000000004
@@ -1977,6 +1981,12 @@ static __u64 wdc_get_drive_capabilities(nvme_root_t r, struct nvme_dev *dev)
 			fallthrough;
 		case WDC_NVME_SN8000S_DEV_ID:
 			fallthrough;
+		case WDC_NVME_SN5100S_DEV_ID_1:
+			fallthrough;
+		case WDC_NVME_SN5100S_DEV_ID_2:
+			fallthrough;
+		case WDC_NVME_SN5100S_DEV_ID_3:
+			fallthrough;
 		case WDC_NVME_SN740_DEV_ID:
 		case WDC_NVME_SN740_DEV_ID_1:
 		case WDC_NVME_SN740_DEV_ID_2:
@@ -2368,12 +2378,18 @@ static bool get_dev_mgment_cbs_data(nvme_root_t r, struct nvme_dev *dev,
 	__u8 uuid_ix = 0;
 	__u8 lid = 0;
 	*cbs_data = NULL;
-	__u32 device_id = 0, read_vendor_id = 0;
+	__u32 device_id = 0, vendor_id = 0;
 	bool uuid_present = false;
 	int index = 0, uuid_index = 0;
 	struct nvme_id_uuid_list uuid_list;
 
-	wdc_get_pci_ids(r, dev, &device_id, &read_vendor_id);
+	/* The wdc_get_pci_ids function could fail when drives are connected
+	 * via a PCIe switch.  Therefore, the return code is intentionally
+	 * being ignored.  The device_id and vendor_id variables have been
+	 * initialized to 0 so the code can continue on without issue for
+	 * both cases: wdc_get_pci_ids successful or failed.
+	 */
+	wdc_get_pci_ids(r, dev, &device_id, &vendor_id);
 
 	lid = WDC_NVME_GET_DEV_MGMNT_LOG_PAGE_ID;
 
