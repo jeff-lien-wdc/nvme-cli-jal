@@ -5173,11 +5173,13 @@ static int ns_rescan(int argc, char **argv, struct command *cmd, struct plugin *
 static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugin *plugin)
 {
 	const char *desc = "Send a sanitize command.";
+	const char *emvs_desc = "Enter media verification state.";
 	const char *no_dealloc_desc = "No deallocate after sanitize.";
 	const char *oipbp_desc = "Overwrite invert pattern between passes.";
 	const char *owpass_desc = "Overwrite pass count.";
 	const char *ause_desc = "Allow unrestricted sanitize exit.";
-	const char *sanact_desc = "Sanitize action: 1 = Exit failure mode, 2 = Start block erase, 3 = Start overwrite, 4 = Start crypto erase";
+	const char *sanact_desc = "Sanitize action: 1 = Exit failure mode, 2 = Start block erase,"
+				"3 = Start overwrite, 4 = Start crypto erase, 5 = Exit media verification";
 	const char *ovrpat_desc = "Overwrite pattern.";
 
 	_cleanup_nvme_dev_ struct nvme_dev *dev = NULL;
@@ -5190,6 +5192,7 @@ static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugi
 		bool	ause;
 		__u8	sanact;
 		__u32	ovrpat;
+		bool	emvs;
 	};
 
 	struct config cfg = {
@@ -5199,6 +5202,7 @@ static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugi
 		.ause		= false,
 		.sanact		= 0,
 		.ovrpat		= 0,
+		.emvs		= false,
 	};
 
 	OPT_VALS(sanact) = {
@@ -5206,6 +5210,7 @@ static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugi
 		VAL_BYTE("start-block-erase", NVME_SANITIZE_SANACT_START_BLOCK_ERASE),
 		VAL_BYTE("start-overwrite", NVME_SANITIZE_SANACT_START_OVERWRITE),
 		VAL_BYTE("start-crypto-erase", NVME_SANITIZE_SANACT_START_CRYPTO_ERASE),
+		VAL_BYTE("exit-media-verification", NVME_SANITIZE_SANACT_EXIT_MEDIA_VERIF),
 		VAL_END()
 	};
 
@@ -5215,7 +5220,8 @@ static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugi
 		  OPT_BYTE("owpass",     'n', &cfg.owpass,     owpass_desc),
 		  OPT_FLAG("ause",       'u', &cfg.ause,       ause_desc),
 		  OPT_BYTE("sanact",     'a', &cfg.sanact,     sanact_desc, sanact),
-		  OPT_UINT("ovrpat",     'p', &cfg.ovrpat,     ovrpat_desc));
+		  OPT_UINT("ovrpat",     'p', &cfg.ovrpat,     ovrpat_desc),
+		  OPT_FLAG("emvs",       'e', &cfg.emvs,       emvs_desc));
 
 	err = parse_and_open(&dev, argc, argv, desc, opts);
 	if (err)
@@ -5226,15 +5232,19 @@ static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugi
 	case NVME_SANITIZE_SANACT_START_BLOCK_ERASE:
 	case NVME_SANITIZE_SANACT_START_OVERWRITE:
 	case NVME_SANITIZE_SANACT_START_CRYPTO_ERASE:
+	case NVME_SANITIZE_SANACT_EXIT_MEDIA_VERIF:
 		break;
 	default:
 		nvme_show_error("Invalid Sanitize Action");
 		return -EINVAL;
 	}
 
-	if (cfg.sanact == NVME_SANITIZE_SANACT_EXIT_FAILURE) {
-		if (cfg.ause || cfg.no_dealloc) {
+	if (cfg.ause || cfg.no_dealloc) {
+		if (cfg.sanact == NVME_SANITIZE_SANACT_EXIT_FAILURE) {
 			nvme_show_error("SANACT is Exit Failure Mode");
+			return -EINVAL;
+		} else if (cfg.sanact == NVME_SANITIZE_SANACT_EXIT_MEDIA_VERIF) {
+			nvme_show_error("SANACT is Exit Media Verification State");
 			return -EINVAL;
 		}
 	}
@@ -5260,7 +5270,9 @@ static int sanitize_cmd(int argc, char **argv, struct command *cmd, struct plugi
 		.nodas		= cfg.no_dealloc,
 		.ovrpat		= cfg.ovrpat,
 		.result		= NULL,
+		.emvs		= cfg.emvs,
 	};
+
 	err = nvme_cli_sanitize_nvm(dev, &args);
 	if (err < 0)
 		nvme_show_error("sanitize: %s", nvme_strerror(errno));
@@ -9163,18 +9175,90 @@ static int check_dhchap_key(int argc, char **argv, struct command *command, stru
 	return 0;
 }
 
+static int append_keyfile(const char *keyring, long id, const char *keyfile)
+{
+	_cleanup_free_ unsigned char *key_data = NULL;
+	_cleanup_free_ char *exported_key = NULL;
+	_cleanup_free_ char *identity = NULL;
+	_cleanup_file_ FILE *fd = NULL;
+	int err, ver, hmac, key_len;
+	mode_t old_umask;
+	long kr_id;
+	char type;
+
+	kr_id = nvme_lookup_keyring(keyring);
+	if (kr_id <= 0) {
+		nvme_show_error("Failed to lookup keyring '%s', %s",
+				keyring, strerror(errno));
+		return -errno;
+	}
+
+	identity = nvme_describe_key_serial(id);
+	if (!identity) {
+		nvme_show_error("Failed to get identity info, %s",
+			strerror(errno));
+		return -errno;
+	}
+
+	if (sscanf(identity, "NVMe%01d%c%02d %*s", &ver, &type, &hmac) != 3) {
+		nvme_show_error("Failed to parse identity\n");
+		return -EINVAL;
+	}
+
+	key_data = nvme_read_key(kr_id, id, &key_len);
+	if (!key_data) {
+		nvme_show_error("Failed to read back derive TLS PSK, %s",
+			strerror(errno));
+		return -errno;
+	}
+
+	exported_key = nvme_export_tls_key_versioned(ver, hmac,
+						     key_data, key_len);
+	if (!exported_key) {
+		nvme_show_error("Failed to export key, %s",
+			strerror(errno));
+		return -errno;
+	}
+
+	old_umask = umask(0);
+
+	fd = fopen(keyfile, "a");
+	if (!fd) {
+		nvme_show_error("Failed to open '%s', %s",
+				keyfile, strerror(errno));
+		err = -errno;
+		goto out;
+	}
+
+	err = fprintf(fd, "%s %s\n", identity, exported_key);
+	if (err < 0) {
+		nvme_show_error("Failed to append key to '%', %s",
+				keyfile, strerror(errno));
+		err = -errno;
+	} else {
+		err = 0;
+	}
+
+out:
+	chmod(keyfile, 0600);
+	umask(old_umask);
+
+	return err;
+}
+
 static int gen_tls_key(int argc, char **argv, struct command *command, struct plugin *plugin)
 {
 	const char *desc = "Generate a TLS key in NVMe PSK Interchange format.";
 	const char *secret =
 	    "Optional secret (in hexadecimal characters) to be used for the TLS key.";
 	const char *hmac = "HMAC function to use for the retained key (1 = SHA-256, 2 = SHA-384).";
-	const char *identity = "TLS identity version to use (0 = NVMe TCP 1.0c, 1 = NVMe TCP 2.0";
+	const char *version = "TLS identity version to use (0 = NVMe TCP 1.0c, 1 = NVMe TCP 2.0";
 	const char *hostnqn = "Host NQN for the retained key.";
 	const char *subsysnqn = "Subsystem NQN for the retained key.";
 	const char *keyring = "Keyring for the retained key.";
 	const char *keytype = "Key type of the retained key.";
 	const char *insert = "Insert retained key into the keyring.";
+	const char *keyfile = "Update key file with the derive TLS PSK.";
 
 	_cleanup_free_ unsigned char *raw_secret = NULL;
 	_cleanup_free_ char *encoded_key = NULL;
@@ -9189,8 +9273,9 @@ static int gen_tls_key(int argc, char **argv, struct command *command, struct pl
 		char		*hostnqn;
 		char		*subsysnqn;
 		char		*secret;
-		unsigned int	hmac;
-		unsigned int	identity;
+		char		*keyfile;
+		unsigned char	hmac;
+		unsigned char	version;
 		bool		insert;
 	};
 
@@ -9200,8 +9285,9 @@ static int gen_tls_key(int argc, char **argv, struct command *command, struct pl
 		.hostnqn	= NULL,
 		.subsysnqn	= NULL,
 		.secret		= NULL,
+		.keyfile	= NULL,
 		.hmac		= 1,
-		.identity	= 0,
+		.version	= 0,
 		.insert		= false,
 	};
 
@@ -9211,8 +9297,9 @@ static int gen_tls_key(int argc, char **argv, struct command *command, struct pl
 		  OPT_STR("hostnqn",	'n', &cfg.hostnqn,	hostnqn),
 		  OPT_STR("subsysnqn",	'c', &cfg.subsysnqn,	subsysnqn),
 		  OPT_STR("secret",	's', &cfg.secret,	secret),
-		  OPT_UINT("hmac",	'm', &cfg.hmac,		hmac),
-		  OPT_UINT("identity",	'I', &cfg.identity,	identity),
+		  OPT_STR("keyfile",	'f', &cfg.keyfile,	keyfile),
+		  OPT_BYTE("hmac",	'm', &cfg.hmac,		hmac),
+		  OPT_BYTE("identity",	'I', &cfg.version,	version),
 		  OPT_FLAG("insert",	'i', &cfg.insert,	insert));
 
 	err = parse_args(argc, argv, desc, opts);
@@ -9222,9 +9309,9 @@ static int gen_tls_key(int argc, char **argv, struct command *command, struct pl
 		nvme_show_error("Invalid HMAC identifier %u", cfg.hmac);
 		return -EINVAL;
 	}
-	if (cfg.identity > 1) {
+	if (cfg.version > 1) {
 		nvme_show_error("Invalid TLS identity version %u",
-				cfg.identity);
+				cfg.version);
 		return -EINVAL;
 	}
 	if (cfg.insert) {
@@ -9276,7 +9363,7 @@ static int gen_tls_key(int argc, char **argv, struct command *command, struct pl
 	if (cfg.insert) {
 		tls_key = nvme_insert_tls_key_versioned(cfg.keyring,
 					cfg.keytype, cfg.hostnqn,
-					cfg.subsysnqn, cfg.identity,
+					cfg.subsysnqn, cfg.version,
 					cfg.hmac, raw_secret, key_len);
 		if (tls_key <= 0) {
 			nvme_show_error("Failed to insert key, error %d", errno);
@@ -9284,7 +9371,14 @@ static int gen_tls_key(int argc, char **argv, struct command *command, struct pl
 		}
 
 		printf("Inserted TLS key %08x\n", (unsigned int)tls_key);
+
+		if (cfg.keyfile) {
+			err = append_keyfile(cfg.keyring, tls_key, cfg.keyfile);
+			if (err)
+				return err;
+		}
 	}
+
 	return 0;
 }
 
@@ -9298,6 +9392,7 @@ static int check_tls_key(int argc, char **argv, struct command *command, struct 
 	const char *keyring = "Keyring for the retained key.";
 	const char *keytype = "Key type of the retained key.";
 	const char *insert = "Insert retained key into the keyring.";
+	const char *keyfile = "Update key file with the derive TLS PSK.";
 
 	_cleanup_free_ unsigned char *decoded_key = NULL;
 	_cleanup_free_ char *hnqn = NULL;
@@ -9310,7 +9405,8 @@ static int check_tls_key(int argc, char **argv, struct command *command, struct 
 		char		*hostnqn;
 		char		*subsysnqn;
 		char		*keydata;
-		unsigned int	identity;
+		char		*keyfile;
+		unsigned char	identity;
 		bool		insert;
 	};
 
@@ -9320,6 +9416,7 @@ static int check_tls_key(int argc, char **argv, struct command *command, struct 
 		.hostnqn	= NULL,
 		.subsysnqn	= NULL,
 		.keydata	= NULL,
+		.keyfile	= NULL,
 		.identity	= 0,
 		.insert		= false,
 	};
@@ -9330,7 +9427,8 @@ static int check_tls_key(int argc, char **argv, struct command *command, struct 
 		  OPT_STR("hostnqn",	'n', &cfg.hostnqn,	hostnqn),
 		  OPT_STR("subsysnqn",	'c', &cfg.subsysnqn,	subsysnqn),
 		  OPT_STR("keydata",	'd', &cfg.keydata,	keydata),
-		  OPT_UINT("identity",	'I', &cfg.identity,	identity),
+		  OPT_STR("keyfile",	'f', &cfg.keyfile,	keyfile),
+		  OPT_BYTE("identity",	'I', &cfg.identity,	identity),
 		  OPT_FLAG("insert",	'i', &cfg.insert,	insert));
 
 	err = parse_args(argc, argv, desc, opts);
@@ -9376,6 +9474,12 @@ static int check_tls_key(int argc, char **argv, struct command *command, struct 
 			return -errno;
 		}
 		printf("Inserted TLS key %08x\n", (unsigned int)tls_key);
+
+		if (cfg.keyfile) {
+			err = append_keyfile(cfg.keyring, tls_key, cfg.keyfile);
+			if (err)
+				return err;
+		}
 	} else {
 		_cleanup_free_ char *tls_id = NULL;
 
@@ -9399,11 +9503,18 @@ static void __scan_tls_key(long keyring_id, long key_id,
 	_cleanup_free_ const unsigned char *key_data = NULL;
 	_cleanup_free_ char *encoded_key = NULL;
 	int key_len;
+	int ver, hmac;
+	char type;
 
 	key_data = nvme_read_key(keyring_id, key_id, &key_len);
 	if (!key_data)
 		return;
-	encoded_key = nvme_export_tls_key(key_data, key_len);
+
+	if (sscanf(desc, "NVMe%01d%c%02d %*s", &ver, &type, &hmac) != 3)
+		return;
+
+	encoded_key = nvme_export_tls_key_versioned(ver, hmac,
+						    key_data, key_len);
 	if (!encoded_key)
 		return;
 	fprintf(fd, "%s %s\n", desc, encoded_key);
@@ -9461,6 +9572,7 @@ static int tls_key(int argc, char **argv, struct command *command, struct plugin
 	const char *revoke = "Revoke key from the keyring.";
 
 	_cleanup_file_ FILE *fd = NULL;
+	mode_t old_umask = 0;
 	int cnt, err = 0;
 
 	struct config {
@@ -9501,9 +9613,11 @@ static int tls_key(int argc, char **argv, struct command *command, struct plugin
 		else
 			mode = "w";
 
+		old_umask = umask(0);
+
 		fd = fopen(cfg.keyfile, mode);
 		if (!fd) {
-			nvme_show_error("Cannot open keyfile %s, error %d\n",
+			nvme_show_error("Cannot open keyfile %s, error %d",
 					cfg.keyfile, errno);
 			return -errno;
 		}
@@ -9524,16 +9638,41 @@ static int tls_key(int argc, char **argv, struct command *command, struct plugin
 		return -EINVAL;
 	} else if (cfg.export) {
 		err = nvme_scan_tls_keys(cfg.keyring, __scan_tls_key, fd);
-		if (err)
+		if (err < 0) {
 			nvme_show_error("Export of TLS keys failed with '%s'",
 				nvme_strerror(errno));
+			return err;
+		}
+
+		if (argconfig_parse_seen(opts, "verbose"))
+			printf("exporting to %s\n", cfg.keyfile);
+
+		return 0;
 	} else if (cfg.import) {
 		err = import_key(cfg.keyring, fd);
+		if (err) {
+			nvme_show_error("Import of TLS keys failed with '%s'",
+					nvme_strerror(errno));
+			return err;
+		}
+
+		if (argconfig_parse_seen(opts, "verbose"))
+			printf("importing from %s\n", cfg.keyfile);
 	} else {
 		err = nvme_revoke_tls_key(cfg.keyring, cfg.keytype, cfg.revoke);
-		if (err)
+		if (err) {
 			nvme_show_error("Failed to revoke key '%s'",
 					nvme_strerror(errno));
+			return err;
+		}
+
+		if (argconfig_parse_seen(opts, "verbose"))
+			printf("revoking key\n");
+	}
+
+	if (old_umask != 0 && fd) {
+		umask(old_umask);
+		chmod(cfg.keyfile, 0600);
 	}
 
 	return err;

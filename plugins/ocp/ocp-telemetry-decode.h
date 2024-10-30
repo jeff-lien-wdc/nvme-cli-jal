@@ -3,11 +3,14 @@
  *
  * Authors: Jeff Lien <jeff.lien@wdc.com>,
  */
+#ifndef OCP_TELEMETRY_DECODE_H
+#define OCP_TELEMETRY_DECODE_H
 
 #include "nvme.h"
 #include "nvme-print.h"
 #include "util/utils.h"
 #include "common.h"
+#include "ocp-nvme.h"
 
 extern __u8 *ptelemetry_buffer;
 extern __u8 *pstring_buffer;
@@ -399,7 +402,7 @@ struct telemetry_data_area_1 {
 	__le16 minor_version;
 	__u8   reserved1[4];
 	__le64 timestamp;
-	__u8   log_page_guid[16];
+	__u8   log_page_guid[GUID_LEN];
 	__u8   no_of_tps_supp;
 	__u8   tps;
 	__u8   reserved2[6];
@@ -435,7 +438,6 @@ struct telemetry_data_area_1 {
 #define DEFAULT_OUTPUT_FORMAT_JSON "json"
 
 /* C9 Telemetry String Log Format Log Page */
-#define C9_GUID_LENGTH                           16
 #define C9_TELEMETRY_STRING_LOG_ENABLE_OPCODE    0xC9
 #define C9_TELEMETRY_STR_LOG_LEN                 432
 #define C9_TELEMETRY_STR_LOG_SIST_OFST           431
@@ -567,7 +569,7 @@ enum ocp_telemetry_debug_event_class_types {
 struct __packed telemetry_str_log_format {
 	__u8    log_page_version;
 	__u8    reserved1[15];
-	__u8    log_page_guid[C9_GUID_LENGTH];
+	__u8    log_page_guid[GUID_LEN];
 	__le64  sls;
 	__u8    reserved2[24];
 	__le64  sits;
@@ -779,7 +781,7 @@ struct __packed nvme_ocp_telemetry_smart_extended
 	__le64 lowest_permitted_firmware_revision;               // Bytes 215:208
 	__u8 reserved4[278];                                     // Bytes 493:216
 	__le16 log_page_version;                                 // Bytes 495:494
-	__u8 log_page_guid[16];                                  // Bytes 511:496
+	__u8 log_page_guid[GUID_LEN];                            // Bytes 511:496
 };
 
 struct __packed nvme_ocp_event_fifo_data
@@ -816,7 +818,7 @@ struct __packed nvme_ocp_header_in_da1
 	__le16 minor_version;                                                // Bytes 3:2
 	__le32 reserved1;                                                    // Bytes 7:4
 	__le64 time_stamp;                                                   // Bytes 15:8
-	__u8 log_page_guid[16];                                              // Bytes 31:16
+	__u8 log_page_guid[GUID_LEN];                                        // Bytes 31:16
 	__u8 num_telemetry_profiles_supported;                               // Byte 32
 	__u8 telemetry_profile_selected;                                     // Byte 33
 	__u8 reserved2[6];                                                   // Bytes 39:34
@@ -917,7 +919,7 @@ struct __packed nvme_ocp_telemetry_string_header
 {
 	__u8 version;                   //0:0
 	__u8 reserved1[15];             //15:1
-	__u8 guid[16];                  //32:16
+	__u8 guid[GUID_LEN];            //32:16
 	__le64 string_log_size;         //39:32
 	__u8 reserved2[24];             //63:40
 	__le64 sits;                    //71:64 Statistics Identifier String Table Start(SITS)
@@ -1225,3 +1227,4 @@ void parse_common_event(struct nvme_ocp_telemetry_event_descriptor *pevent_descr
 void parse_media_wear_event(struct nvme_ocp_telemetry_event_descriptor *pevent_descriptor,
 			    struct json_object *pevent_descriptor_obj, __u8 *pevent_specific_data,
 			    struct json_object *pevent_fifos_object, FILE *fp);
+#endif /* OCP_TELEMETRY_DECODE_H */

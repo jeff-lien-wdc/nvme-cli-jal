@@ -70,6 +70,30 @@ class TestNVMe(unittest.TestCase):
         """ Post Section for TestNVMe. """
         if self.clear_log_dir is True:
             shutil.rmtree(self.log_dir, ignore_errors=True)
+        self.create_and_attach_default_ns()
+
+    def create_and_attach_default_ns(self):
+        """ Creates a default namespace with the full capacity of the ctrls NVM
+            - Args:
+                - None
+            - Returns:
+                - None
+        """
+        self.dps = 0
+        self.flbas = 0
+        (ds, ms) = self.get_lba_format_size()
+        ncap = int(self.get_ncap() / (ds+ms))
+        self.nsze = ncap
+        self.ncap = ncap
+        self.ctrl_id = self.get_ctrl_id()
+        self.delete_all_ns()
+        err = self.create_and_validate_ns(self.default_nsid,
+                                          self.nsze,
+                                          self.ncap,
+                                          self.flbas,
+                                          self.dps)
+        self.assertEqual(err, 0)
+        self.assertEqual(self.attach_ns(self.ctrl_id, self.default_nsid), 0)
 
     def validate_pci_device(self):
         """ Validate underlying device belongs to pci subsystem.
@@ -147,22 +171,23 @@ class TestNVMe(unittest.TestCase):
         self.assertEqual(proc.wait(), 0, "ERROR : pci rescan failed")
 
     def get_ctrl_id(self):
-        """ Wrapper for extracting the controller id.
+        """ Wrapper for extracting the first controller id.
             - Args:
                 - None
             - Returns:
                 - controller id.
         """
-        get_ctrl_id = "nvme list-ctrl " + self.ctrl
+        get_ctrl_id = f"nvme list-ctrl {self.ctrl} --output-format=json"
         proc = subprocess.Popen(get_ctrl_id,
                                 shell=True,
                                 stdout=subprocess.PIPE,
                                 encoding='utf-8')
         err = proc.wait()
         self.assertEqual(err, 0, "ERROR : nvme list-ctrl failed")
-        line = proc.stdout.readline()
-        ctrl_id = line.split(":")[1].strip()
-        return ctrl_id
+        json_output = json.loads(proc.stdout.read())
+        self.assertTrue(len(json_output['ctrl_list']) > 0,
+                        "ERROR : nvme list-ctrl could not find ctrl")
+        return str(json_output['ctrl_list'][0]['ctrl_id'])
 
     def get_ns_list(self):
         """ Wrapper for extracting the namespace list.
@@ -207,6 +232,43 @@ class TestNVMe(unittest.TestCase):
         print(max_ns)
         return int(max_ns)
 
+    def get_lba_status_supported(self):
+        """ Check if 'Get LBA Status' command is supported by the device
+            - Args:
+                - None
+            - Returns:
+                - True if 'Get LBA Status' command is supported, otherwise False
+        """
+        return int(self.get_id_ctrl_field_value("oacs"), 16) & (1 << 9)
+
+    def get_lba_format_size(self):
+        """ Wrapper for extracting lba format size of the given flbas
+            - Args:
+                - None
+            - Returns:
+                - lba format size as a tuple of (data_size, metadata_size) in bytes.
+        """
+        nvme_id_ns_cmd = f"nvme id-ns {self.ns1} --output-format=json"
+        proc = subprocess.Popen(nvme_id_ns_cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                encoding='utf-8')
+        err = proc.wait()
+        self.assertEqual(err, 0, "ERROR : reading id-ns")
+        json_output = json.loads(proc.stdout.read())
+        self.assertTrue(len(json_output['lbafs']) > self.flbas,
+                        "Error : could not match the given flbas to an existing lbaf")
+        lbaf_json = json_output['lbafs'][int(self.flbas)]
+        ms_expo = int(lbaf_json['ms'])
+        ds_expo = int(lbaf_json['ds'])
+        ds = 0
+        ms = 0
+        if ds_expo > 0:
+            ds = (1 << ds_expo)
+        if ms_expo > 0:
+            ms = (1 << ms_expo)
+        return (ds, ms)
+
     def get_ncap(self):
         """ Wrapper for extracting capacity.
             - Args:
@@ -231,6 +293,25 @@ class TestNVMe(unittest.TestCase):
         print(ncap)
         return int(ncap)
 
+    def get_id_ctrl_field_value(self, field):
+        """ Wrapper for extracting id-ctrl field values
+            - Args:
+                - None
+            - Returns:
+                - Filed value of the given field
+        """
+        id_ctrl_cmd = f"nvme id-ctrl {self.ctrl} --output-format=json"
+        proc = subprocess.Popen(id_ctrl_cmd,
+                                shell=True,
+                                stdout=subprocess.PIPE,
+                                encoding='utf-8')
+        err = proc.wait()
+        self.assertEqual(err, 0, "ERROR : reading id-ctrl failed")
+        json_output = json.loads(proc.stdout.read())
+        self.assertTrue(field in json_output,
+                        f"ERROR : reading field '{field}' failed")
+        return str(json_output[field])
+
     def get_ocfs(self):
         """ Wrapper for extracting optional copy formats supported
             - Args:
@@ -238,11 +319,7 @@ class TestNVMe(unittest.TestCase):
             - Returns:
                 - Optional Copy Formats Supported
         """
-        pattern = re.compile(r'^ocfs\s*: 0x[0-9a-fA-F]+$')
-        output = subprocess.check_output(["nvme", "id-ctrl", self.ctrl], encoding='utf-8')
-        ocfs_line = next(line for line in output.splitlines() if pattern.match(line))
-        ocfs = ocfs_line.split(":")[1].strip()
-        return int(ocfs, 16)
+        return int(self.get_id_ctrl_field_value("ocfs"), 16)
 
     def get_format(self):
         """ Wrapper for extracting format.
@@ -391,25 +468,8 @@ class TestNVMe(unittest.TestCase):
                                 encoding='utf-8')
         err = proc.wait()
         self.assertEqual(err, 0, "ERROR : nvme smart log failed")
-
-        for line in proc.stdout:
-            if "data_units_read" in line:
-                data_units_read = \
-                    line.replace(",", "", 1)
-            if "data_units_written" in line:
-                data_units_written = \
-                    line.replace(",", "", 1)
-            if "host_read_commands" in line:
-                host_read_commands = \
-                    line.replace(",", "", 1)
-            if "host_write_commands" in line:
-                host_write_commands = \
-                    line.replace(",", "", 1)
-
-        print("data_units_read " + data_units_read)
-        print("data_units_written " + data_units_written)
-        print("host_read_commands " + host_read_commands)
-        print("host_write_commands " + host_write_commands)
+        smart_log_output = proc.communicate()[0]
+        print(f"{smart_log_output}")
         return err
 
     def get_id_ctrl(self, vendor=False):
@@ -422,7 +482,7 @@ class TestNVMe(unittest.TestCase):
         if not vendor:
             id_ctrl_cmd = "nvme id-ctrl " + self.ctrl
         else:
-            id_ctrl_cmd = "nvme id-ctrl -v " + self.ctrl
+            id_ctrl_cmd = "nvme id-ctrl --vendor-specific " + self.ctrl
         print(id_ctrl_cmd)
         proc = subprocess.Popen(id_ctrl_cmd,
                                 shell=True,
@@ -439,7 +499,7 @@ class TestNVMe(unittest.TestCase):
             - Returns:
                 - 0 on success, error code on failure.
         """
-        pattern = re.compile("^ Entry\[[ ]*[0-9]+\]")
+        pattern = re.compile(r"^ Entry\[[ ]*[0-9]+\]")
         error_log_cmd = "nvme error-log " + self.ctrl
         proc = subprocess.Popen(error_log_cmd,
                                 shell=True,
@@ -456,7 +516,7 @@ class TestNVMe(unittest.TestCase):
 
         return 0 if err_log_entry_count == entry_count else 1
 
-    def run_ns_io(self, nsid, lbads):
+    def run_ns_io(self, nsid, lbads, count=10):
         """ Wrapper to run ios on namespace under test.
             - Args:
                 - lbads : LBA Data size supported in power of 2 format.
@@ -466,14 +526,14 @@ class TestNVMe(unittest.TestCase):
         block_size = mmap.PAGESIZE if int(lbads) < 9 else 2 ** int(lbads)
         ns_path = self.ctrl + "n" + str(nsid)
         io_cmd = "dd if=" + ns_path + " of=/dev/null" + " bs=" + \
-                 str(block_size) + " count=10 > /dev/null 2>&1"
+                 str(block_size) + " count=" + str(count) + " > /dev/null 2>&1"
         print(io_cmd)
         run_io = subprocess.Popen(io_cmd, shell=True, stdout=subprocess.PIPE,
                                   encoding='utf-8')
         run_io_result = run_io.communicate()[1]
         self.assertEqual(run_io_result, None)
         io_cmd = "dd if=/dev/zero of=" + ns_path + " bs=" + \
-                 str(block_size) + " count=10 > /dev/null 2>&1"
+                 str(block_size) + " count=" + str(count) + " > /dev/null 2>&1"
         print(io_cmd)
         run_io = subprocess.Popen(io_cmd, shell=True, stdout=subprocess.PIPE,
                                   encoding='utf-8')

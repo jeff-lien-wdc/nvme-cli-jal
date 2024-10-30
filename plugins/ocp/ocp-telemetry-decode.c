@@ -280,7 +280,7 @@ struct request_data ocp_header_in_da1[] = {
 	{ "Minor Version", 2 },
 	{ "Reserved1", 4 },
 	{ "Timestamp", 8 },
-	{ "Log page GUID", 16 },
+	{ "Log page GUID", GUID_LEN },
 	{ "Number Telemetry Profiles Supported", 1 },
 	{ "Telemetry Profile Selected", 1 },
 	{ "Reserved2", 6 },
@@ -419,9 +419,10 @@ struct request_data smart_extended[] = {
 	{ "Lowest Permitted Firmware Revision", 8 },
 	{ "Reserved4", 278 },
 	{ "Log Page Version", 2 },
-	{ "Log page GUID", 16 }
+	{ "Log page GUID", GUID_LEN }
 };
 
+#ifdef CONFIG_JSONC
 void json_add_formatted_u32_str(struct json_object *pobject, const char *msg, unsigned int pdata)
 {
 	char data_str[70] = { 0 };
@@ -443,6 +444,7 @@ void json_add_formatted_var_size_str(struct json_object *pobject, const char *ms
 
 	json_object_add_value_string(pobject, msg, description_str);
 }
+#endif /* CONFIG_JSONC */
 
 int get_telemetry_das_offset_and_size(
 	struct nvme_ocp_telemetry_common_header *ptelemetry_common_header,
@@ -636,6 +638,7 @@ int parse_ocp_telemetry_string_log(int event_fifo_num, int identifier, int debug
 	return 0;
 }
 
+#ifdef CONFIG_JSONC
 void parse_time_stamp_event(struct nvme_ocp_telemetry_event_descriptor *pevent_descriptor,
 			    struct json_object *pevent_descriptor_obj, __u8 *pevent_specific_data,
 			    struct json_object *pevent_fifos_object, FILE *fp)
@@ -1695,3 +1698,4 @@ int print_ocp_telemetry_json(struct ocp_telemetry_parse_options *options)
 
 	return status;
 }
+#endif /* CONFIG_JSONC */
