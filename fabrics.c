@@ -681,6 +681,7 @@ static int nvme_read_config_checked(nvme_root_t r, const char *filename)
 	return 0;
 }
 
+/* returns negative errno values */
 int nvmf_discover(const char *desc, int argc, char **argv, bool connect)
 {
 	char *subsysnqn = NVME_DISC_SUBSYS_NAME;
@@ -757,7 +758,7 @@ int nvmf_discover(const char *desc, int argc, char **argv, bool connect)
 	if (ret < 0) {
 		fprintf(stderr, "Failed to scan topology: %s\n",
 			nvme_strerror(errno));
-		return ret;
+		return -errno;
 	}
 
 	ret = nvme_host_get_ids(r, hostnqn, hostid, &hnqn, &hid);
@@ -766,7 +767,7 @@ int nvmf_discover(const char *desc, int argc, char **argv, bool connect)
 
 	h = nvme_lookup_host(r, hnqn, hid);
 	if (!h) {
-		ret = ENOMEM;
+		ret = -ENOMEM;
 		goto out_free;
 	}
 
@@ -781,10 +782,9 @@ int nvmf_discover(const char *desc, int argc, char **argv, bool connect)
 
 	if (!device && !transport && !traddr) {
 		if (!nonbft)
-			discover_from_nbft(r, hostnqn, hostid,
-					   hnqn, hid, desc, connect,
-					   &cfg, nbft_path, flags, verbose);
-
+			ret = discover_from_nbft(r, hostnqn, hostid,
+						  hnqn, hid, desc, connect,
+						  &cfg, nbft_path, flags, verbose);
 		if (nbft)
 			goto out_free;
 
@@ -876,7 +876,7 @@ int nvmf_discover(const char *desc, int argc, char **argv, bool connect)
 				fprintf(stderr,
 					"failed to add controller, error %s\n",
 					nvme_strerror(errno));
-			ret = errno;
+			ret = -errno;
 			goto out_free;
 		}
 	}
@@ -1430,7 +1430,7 @@ int nvmf_config(const char *desc, int argc, char **argv)
 	return 0;
 }
 
-static void dim_operation(nvme_ctrl_t c, enum nvmf_dim_tas tas, const char *name)
+static int dim_operation(nvme_ctrl_t c, enum nvmf_dim_tas tas, const char *name)
 {
 	static const char * const task[] = {
 		[NVMF_DIM_TAS_REGISTER]   = "register",
@@ -1451,6 +1451,8 @@ static void dim_operation(nvme_ctrl_t c, enum nvmf_dim_tas tas, const char *name
 		fprintf(stderr, "%s DIM %s command error. Result:0x%04x, Status:0x%04x - %s\n",
 			name, t, result, status, nvme_status_to_string(status, false));
 	}
+
+	return nvme_status_to_errno(status, true);
 }
 
 int nvmf_dim(const char *desc, int argc, char **argv)
@@ -1530,9 +1532,8 @@ int nvmf_dim(const char *desc, int argc, char **argv)
 				nvme_for_each_subsystem(h, s) {
 					if (strcmp(nvme_subsystem_get_nqn(s), p))
 						continue;
-					nvme_subsystem_for_each_ctrl(s, c) {
-						dim_operation(c, tas, p);
-					}
+					nvme_subsystem_for_each_ctrl(s, c)
+						ret = dim_operation(c, tas, p);
 				}
 			}
 		}
@@ -1551,9 +1552,9 @@ int nvmf_dim(const char *desc, int argc, char **argv)
 					p, nvme_strerror(errno));
 				return -errno;
 			}
-			dim_operation(c, tas, p);
+			ret = dim_operation(c, tas, p);
 		}
 	}
 
-	return 0;
+	return ret;
 }

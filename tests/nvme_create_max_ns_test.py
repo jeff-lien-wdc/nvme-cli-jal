@@ -29,8 +29,6 @@ NVMe Namespace Management Testcase:-
     5. Delete all Namespaces.
 """
 
-import time
-
 from nvme_test import TestNVMe
 
 
@@ -63,7 +61,6 @@ class TestNVMeCreateMaxNS(TestNVMe):
         self.max_ns = self.get_max_ns()
         self.ctrl_id = self.get_ctrl_id()
         self.delete_all_ns()
-        time.sleep(1)
 
     def tearDown(self):
         """
@@ -85,21 +82,21 @@ class TestNVMeCreateMaxNS(TestNVMe):
         """ Testcase main """
         print(f"##### Testing max_ns: {self.max_ns}")
         for nsid in range(1, self.max_ns + 1):
-            print("##### Creating " + str(nsid))
+            print(f"##### Creating {nsid}")
             err = self.create_and_validate_ns(nsid,
                                               self.nsze,
                                               self.ncap,
                                               self.flbas,
                                               self.dps)
             self.assertEqual(err, 0)
-            print("##### Attaching " + str(nsid))
+            print(f"##### Attaching {nsid}")
             self.assertEqual(self.attach_ns(self.ctrl_id, nsid), 0)
-            print("##### Running IOs in " + str(nsid))
+            print(f"##### Running IOs in {nsid}")
             self.run_ns_io(nsid, 9, 1)
 
         for nsid in range(1, self.max_ns + 1):
-            print("##### Detaching " + str(nsid))
+            print(f"##### Detaching {nsid}")
             self.assertEqual(self.detach_ns(self.ctrl_id, nsid), 0)
-            print("#### Deleting " + str(nsid))
+            print(f"#### Deleting {nsid}")
             self.assertEqual(self.delete_and_validate_ns(nsid), 0)
         self.nvme_reset_ctrl()

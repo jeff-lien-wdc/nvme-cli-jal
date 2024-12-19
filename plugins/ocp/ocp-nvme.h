@@ -11,7 +11,7 @@
 #if !defined(OCP_NVME) || defined(CMD_HEADER_MULTI_READ)
 #define OCP_NVME
 
-#define OCP_PLUGIN_VERSION   "2.9.2"
+#define OCP_PLUGIN_VERSION   "2.9.3"
 #include "cmd.h"
 
 PLUGIN(NAME("ocp", "OCP cloud SSD extensions", OCP_PLUGIN_VERSION),
@@ -40,6 +40,7 @@ PLUGIN(NAME("ocp", "OCP cloud SSD extensions", OCP_PLUGIN_VERSION),
 		ENTRY("set-error-injection", "Inject error conditions", set_error_injection)
 		ENTRY("get-enable-ieee1667-silo", "return set of enable IEEE1667 silo",
 		      get_enable_ieee1667_silo)
+		ENTRY("set-enable-ieee1667-silo", "enable IEEE1667 silo", set_enable_ieee1667_silo)
 		ENTRY("hardware-component-log", "retrieve hardware component log", hwcomp_log)
 	)
 );
@@ -73,8 +74,9 @@ struct __packed ssd_latency_monitor_log {
 	__le64	static_latency_timestamp[4][3];	/* 0x130 - 0x18F */
 	__le16	static_measured_latency[4][3];	/* 0x190 - 0x1A7 */
 	__le16	static_latency_stamp_units;	/* 0x1A8 */
-	__u8	rsvd4[0x16];			/* 0x1AA */
+	__u8	rsvd4[0x0A];			/* 0x1AA */
 
+	__u8	latency_monitor_debug_log_size[0x0C]; /* 0x1B4 */
 	__le16	debug_log_trigger_enable;	/* 0x1C0 */
 	__le16	debug_log_measured_latency;	/* 0x1C2 */
 	__le64	debug_log_latency_stamp;	/* 0x1C4 */
@@ -195,7 +197,7 @@ struct __packed ocp_device_capabilities_log_page {
 /*
  * struct tcg_configuration_log - TCG Configuration Log Page Structure
  * @state:                            state
- * @rsvd1:                            Reserved1
+ * @rsvd1:                            Reserved
  * @locking_sp_act_count:             Locking SP Activation Count
  * @type_rev_count:                   Tper Revert Count
  * @locking_sp_rev_count:             Locking SP Revert Count.
@@ -207,13 +209,14 @@ struct __packed ocp_device_capabilities_log_page {
  * @no_of_write_lock_locking_obj:     Number of Write Locked Locking Objects
  * @no_of_read_unlock_locking_obj:    Number of Read Unlocked Locking Objects
  * @no_of_read_unlock_locking_obj:    Number of Write Unlocked Locking Objects
- * @rsvd2:                            Reserved2
+ * @rsvd15:                           Reserved
  * @sid_auth_try_count:               SID Authentication Try Count
  * @sid_auth_try_limit:               SID Authentication Try Limit
  * @pro_tcg_rc:                       Programmatic TCG Reset Count
  * @pro_rlc:                          Programmatic Reset Lock Count
  * @tcg_ec:                           TCG Error Count
- * @rsvd3:                            Reserved3
+ * @no_of_ns_prov_locking_obj_ext:    Number of Namespace Provisioned Locking Objects Extended
+ * @rsvd38:                           Reserved
  * @log_page_version:                 Log Page Version
  */
 struct __packed tcg_configuration_log {
@@ -230,13 +233,14 @@ struct __packed tcg_configuration_log {
 	__u8    no_of_write_lock_locking_obj;
 	__u8    no_of_read_unlock_locking_obj;
 	__u8    no_of_write_unlock_locking_obj;
-	__u8    rsvd2;
+	__u8    rsvd15;
 	__le32  sid_auth_try_count;
 	__le32  sid_auth_try_limit;
 	__le32  pro_tcg_rc;
 	__le32  pro_rlc;
 	__le32  tcg_ec;
-	__u8    rsvd3[458];
+	__le16  no_of_ns_prov_locking_obj_ext;
+	__u8    rsvd38[456];
 	__le16  log_page_version;
 	__u8    log_page_guid[GUID_LEN];
 
