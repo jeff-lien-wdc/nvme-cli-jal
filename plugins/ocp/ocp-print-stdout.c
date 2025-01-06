@@ -75,8 +75,7 @@ static void stdout_fw_activation_history(const struct fw_activation_history *fw_
 		printf("      %-22s%d\n", "entry length:", entry->entry_length);
 		printf("      %-22s%d\n", "activation count:",
 		       le16_to_cpu(entry->activation_count));
-		printf("      %-22s%"PRIu64"\n", "timestamp:",
-				(0x0000FFFFFFFFFFFF & le64_to_cpu(entry->timestamp)));
+		printf("      %-22s%"PRIu64"\n", "timestamp:", int48_to_long(entry->ts.timestamp));
 		printf("      %-22s%"PRIu64"\n", "power cycle count:",
 		       le64_to_cpu(entry->power_cycle_count));
 		printf("      %-22s%.*s\n", "previous firmware:", (int)sizeof(entry->previous_fw),
@@ -98,7 +97,7 @@ static void stdout_fw_activation_history(const struct fw_activation_history *fw_
 	printf("\n");
 }
 
-static void stdout_smart_extended_log(void *data)
+static void stdout_smart_extended_log(void *data, unsigned int version)
 {
 	uint16_t smart_log_ver = 0;
 	__u8 *log_data = data;
@@ -106,17 +105,17 @@ static void stdout_smart_extended_log(void *data)
 	printf("SMART Cloud Attributes :-\n");
 
 	printf("  Physical media units written -		%"PRIu64" %"PRIu64"\n",
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUW + 8] & 0xFFFFFFFFFFFFFFFF),
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUW] & 0xFFFFFFFFFFFFFFFF));
+	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUW + 8]),
+	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUW]));
 	printf("  Physical media units read    -		%"PRIu64" %"PRIu64"\n",
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUR + 8] & 0xFFFFFFFFFFFFFFFF),
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUR] & 0xFFFFFFFFFFFFFFFF));
+	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUR + 8]),
+	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_PMUR]));
 	printf("  Bad user nand blocks - Raw			%"PRIu64"\n",
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_BUNBR] & 0x0000FFFFFFFFFFFF));
+	       int48_to_long(&log_data[SCAO_BUNBR]));
 	printf("  Bad user nand blocks - Normalized		%d\n",
 	       (uint16_t)le16_to_cpu(*(uint16_t *)&log_data[SCAO_BUNBN]));
 	printf("  Bad system nand blocks - Raw			%"PRIu64"\n",
-	       (uint64_t)le64_to_cpu(*(uint64_t *)&log_data[SCAO_BSNBR] & 0x0000FFFFFFFFFFFF));
+	       int48_to_long(&log_data[SCAO_BSNBR]));
 	printf("  Bad system nand blocks - Normalized		%d\n",
 	       (uint16_t)le16_to_cpu(*(uint16_t *)&log_data[SCAO_BSNBN]));
 	printf("  XOR recovery count				%"PRIu64"\n",
@@ -132,7 +131,7 @@ static void stdout_smart_extended_log(void *data)
 	printf("  System data percent used			%d\n",
 	       (__u8)log_data[SCAO_SDPU]);
 	printf("  Refresh counts				%"PRIu64"\n",
-	       (uint64_t)(le64_to_cpu(*(uint64_t *)&log_data[SCAO_RFSC]) & 0x00FFFFFFFFFFFFFF));
+	       int56_to_long(&log_data[SCAO_RFSC]));
 	printf("  Max User data erase counts			%"PRIu32"\n",
 	       (uint32_t)le32_to_cpu(*(uint32_t *)&log_data[SCAO_MXUDEC]));
 	printf("  Min User data erase counts			%"PRIu32"\n",

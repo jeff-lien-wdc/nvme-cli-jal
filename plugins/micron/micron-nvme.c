@@ -737,10 +737,12 @@ static int micron_temp_stats(int argc, char **argv, struct command *cmd,
 	struct format cfg = {
 		.fmt = "normal",
 	};
+
 	bool is_json = false;
 	struct json_object *root;
 	struct json_object *logPages;
 	struct nvme_dev *dev;
+	nvme_print_flags_t flags;
 
 	OPT_ARGS(opts) = {
 		OPT_FMT("format", 'f', &cfg.fmt, fmt),
@@ -753,7 +755,13 @@ static int micron_temp_stats(int argc, char **argv, struct command *cmd,
 		return -1;
 	}
 
-	if (!strcmp(cfg.fmt, "json"))
+	err = validate_output_format(nvme_cfg.output_format, &flags);
+	if (err < 0) {
+		nvme_show_error("Invalid output format");
+		return err;
+	}
+
+	if (flags & JSON)
 		is_json = true;
 
 	err = nvme_get_log_smart(dev_fd(dev), 0xffffffff, false, &smart_log);
@@ -764,6 +772,7 @@ static int micron_temp_stats(int argc, char **argv, struct command *cmd,
 			tempSensors[i] = le16_to_cpu(smart_log.temp_sensor[i]);
 			tempSensors[i] = tempSensors[i] ? tempSensors[i] - 273 : 0;
 		}
+
 		if (is_json) {
 			struct json_object *stats = json_create_object();
 			char tempstr[64] = { 0 };
@@ -840,6 +849,7 @@ static int micron_pcie_stats(int argc, char **argv,
 		__u16 ecrc_error;
 		__u16 unsupported_request_error;
 	} pcie_error_counters = { 0 };
+	nvme_print_flags_t flags;
 
 	struct {
 		char *err;
@@ -905,7 +915,13 @@ static int micron_pcie_stats(int argc, char **argv,
 		goto out;
 	}
 
-	if (!strcmp(cfg.fmt, "normal"))
+	err = validate_output_format(cfg.fmt, &flags);
+	if (err < 0) {
+		nvme_show_error("Invalid output format");
+		return err;
+	}
+
+	if (flags & NORMAL)
 		is_json = false;
 
 	if (eModel == M5407) {
@@ -1546,12 +1562,20 @@ static int micron_smart_ext_log(int argc, char **argv,
 		OPT_FMT("format", 'f', &cfg.fmt, fmt),
 		OPT_END()
 	};
+	nvme_print_flags_t flags;
 
 	err = parse_and_open(&dev, argc, argv, desc, opts);
 	if (err) {
 		printf("\nDevice not found\n");
 		return -1;
 	}
+
+	err = validate_output_format(nvme_cfg.output_format, &flags);
+	if (err < 0) {
+		nvme_show_error("Invalid output format");
+		return err;
+	}
+
 	if (!strcmp(cfg.fmt, "normal"))
 		is_json = false;
 
@@ -1956,6 +1980,7 @@ static int micron_drive_info(int argc, char **argv, struct command *cmd,
 		char *fmt;
 	};
 	int err = 0;
+	nvme_print_flags_t flags;
 
 	const char *fmt = "output format normal";
 	struct format cfg = {
@@ -1975,6 +2000,12 @@ static int micron_drive_info(int argc, char **argv, struct command *cmd,
 		fprintf(stderr, "ERROR : Unsupported drive for vs-drive-info cmd");
 		dev_close(dev);
 		return -1;
+	}
+
+	err = validate_output_format(cfg.fmt, &flags);
+	if (err < 0) {
+		nvme_show_error("Invalid output format");
+		return err;
 	}
 
 	if (!strcmp(cfg.fmt, "json"))

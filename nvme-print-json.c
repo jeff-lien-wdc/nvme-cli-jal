@@ -28,6 +28,13 @@
 #define obj_add_uint json_object_add_value_uint
 #define obj_add_uint128 json_object_add_value_uint128
 #define obj_add_uint64 json_object_add_value_uint64
+#define obj_add_str json_object_add_value_string
+#define obj_add_uint_02x json_object_add_uint_02x
+#define obj_add_uint_0x json_object_add_uint_0x
+#define obj_add_byte_array json_object_add_byte_array
+#define obj_add_nprix64 json_object_add_nprix64
+#define obj_add_uint_0nx json_object_add_uint_0nx
+#define obj_add_0nprix64 json_object_add_0nprix64
 
 static const uint8_t zero_uuid[16] = { 0 };
 static struct print_ops json_print_ops;
@@ -74,40 +81,11 @@ static void obj_add_uint_x(struct json_object *o, const char *k, __u32 v)
 	obj_add_str(o, k, str);
 }
 
-void obj_add_uint_0x(struct json_object *o, const char *k, __u32 v)
-{
-	char str[STR_LEN];
-
-	sprintf(str, "0x%x", v);
-	obj_add_str(o, k, str);
-}
-
-void obj_add_uint_0nx(struct json_object *o, const char *k, __u32 v, int width)
-{
-	char str[STR_LEN];
-
-	sprintf(str, "0x%0*x", width, v);
-	obj_add_str(o, k, str);
-}
-
-void obj_add_uint_02x(struct json_object *o, const char *k, __u32 v)
-{
-	obj_add_uint_0nx(o, k, v, 2);
-}
-
 static void obj_add_uint_nx(struct json_object *o, const char *k, __u32 v)
 {
 	char str[STR_LEN];
 
 	sprintf(str, "%#x", v);
-	obj_add_str(o, k, str);
-}
-
-void obj_add_nprix64(struct json_object *o, const char *k, uint64_t v)
-{
-	char str[STR_LEN];
-
-	sprintf(str, "%#"PRIx64"", v);
 	obj_add_str(o, k, str);
 }
 
@@ -450,8 +428,9 @@ void json_nvme_id_ctrl(struct nvme_id_ctrl *ctrl,
 		struct json_object *psd = json_create_object();
 
 		obj_add_int(psd, "max_power", le16_to_cpu(ctrl->psd[i].mp));
-		obj_add_int(psd, "max_power_scale", ctrl->psd[i].flags & 0x1);
-		obj_add_int(psd, "non-operational_state", (ctrl->psd[i].flags & 2) >> 1);
+		obj_add_int(psd, "max_power_scale", ctrl->psd[i].flags & NVME_PSD_FLAGS_MXPS);
+		obj_add_int(psd, "non-operational_state",
+			    !!(ctrl->psd[i].flags & NVME_PSD_FLAGS_NOPS));
 		obj_add_uint(psd, "entry_lat", le32_to_cpu(ctrl->psd[i].enlat));
 		obj_add_uint(psd, "exit_lat", le32_to_cpu(ctrl->psd[i].exlat));
 		obj_add_int(psd, "read_tput", ctrl->psd[i].rrt);
@@ -1156,42 +1135,43 @@ static void json_registers_bpinfo(uint32_t bpinfo, struct json_object *r)
 {
 	obj_add_uint_x(r, "bpinfo", bpinfo);
 
-	obj_add_uint(r, "Active Boot Partition ID (ABPID)", (bpinfo & 0x80000000) >> 31);
-	json_registers_bpinfo_brs((bpinfo & 0x3000000) >> 24, r);
-	obj_add_uint(r, "Boot Partition Size (BPSZ)", bpinfo & 0x7fff);
+	obj_add_uint(r, "Active Boot Partition ID (ABPID)", NVME_BPINFO_ABPID(bpinfo));
+	json_registers_bpinfo_brs(NVME_BPINFO_BRS(bpinfo), r);
+	obj_add_uint(r, "Boot Partition Size (BPSZ)", NVME_BPINFO_BPSZ(bpinfo));
 }
 
 static void json_registers_bprsel(uint32_t bprsel, struct json_object *r)
 {
 	obj_add_uint_x(r, "bprsel", bprsel);
 
-	obj_add_uint(r, "Boot Partition Identifier (BPID)", (bprsel & 0x80000000) >> 31);
-	obj_add_uint_x(r, "Boot Partition Read Offset (BPROF)", (bprsel & 0x3ffffc00) >> 10);
-	obj_add_uint_x(r, "Boot Partition Read Size (BPRSZ)", bprsel & 0x3ff);
+	obj_add_uint(r, "Boot Partition Identifier (BPID)", NVME_BPRSEL_BPID(bprsel));
+	obj_add_uint_x(r, "Boot Partition Read Offset (BPROF)", NVME_BPRSEL_BPROF(bprsel));
+	obj_add_uint_x(r, "Boot Partition Read Size (BPRSZ)", NVME_BPRSEL_BPRSZ(bprsel));
 }
 
 static void json_registers_bpmbl(uint64_t bpmbl, struct json_object *r)
 {
 	obj_add_prix64(r, "bpmbl", bpmbl);
 
-	obj_add_prix64(r, "Boot Partition Memory Buffer Base Address (BMBBA)", bpmbl);
+	obj_add_prix64(r, "Boot Partition Memory Buffer Base Address (BMBBA)",
+		       (uint64_t)NVME_BPMBL_BMBBA(bpmbl));
 }
 
 static void json_registers_cmbmsc(uint64_t cmbmsc, struct json_object *r)
 {
 	obj_add_prix64(r, "cmbmsc", cmbmsc);
 
-	obj_add_prix64(r, "Controller Base Address (CBA)", (cmbmsc & 0xfffffffffffff000) >> 12);
-	obj_add_prix64(r, "Controller Memory Space Enable (CMSE)", (cmbmsc & 2) >> 1);
+	obj_add_prix64(r, "Controller Base Address (CBA)", (uint64_t)NVME_CMBMSC_CBA(cmbmsc));
+	obj_add_prix64(r, "Controller Memory Space Enable (CMSE)", NVME_CMBMSC_CMSE(cmbmsc));
 	obj_add_str(r, "Capabilities Registers Enabled (CRE)",
-		     cmbmsc & 1 ? "Enabled" : "Not enabled");
+		    NVME_CMBMSC_CRE(cmbmsc) ? "Enabled" : "Not enabled");
 }
 
 static void json_registers_cmbsts(uint32_t cmbsts, struct json_object *r)
 {
 	obj_add_uint_x(r, "cmbsts", cmbsts);
 
-	obj_add_uint_x(r, "Controller Base Address Invalid (CBAI)", cmbsts & 1);
+	obj_add_uint_x(r, "Controller Base Address Invalid (CBAI)", NVME_CMBSTS_CBAI(cmbsts));
 }
 
 static void json_registers_cmbebs(uint32_t cmbebs, struct json_object *r)
@@ -1200,11 +1180,11 @@ static void json_registers_cmbebs(uint32_t cmbebs, struct json_object *r)
 
 	obj_add_uint_nx(r, "cmbebs", cmbebs);
 
-	obj_add_uint_nx(r, "CMB Elasticity Buffer Size Base (CMBWBZ)", cmbebs >> 8);
-	sprintf(buffer, "%s", cmbebs & 0x10 ? "shall" : "may");
+	obj_add_uint_nx(r, "CMB Elasticity Buffer Size Base (CMBWBZ)", NVME_CMBEBS_CMBWBZ(cmbebs));
+	sprintf(buffer, "%s", NVME_CMBEBS_RBB(cmbebs) ? "shall" : "may");
 	obj_add_str(r, "CMB Read Bypass Behavior (CMBRBB)", buffer);
 	obj_add_str(r, "CMB Elasticity Buffer Size Units (CMBSZU)",
-			nvme_register_unit_to_string(cmbebs & 0xf));
+		    nvme_register_unit_to_string(NVME_CMBEBS_CMBSZU(cmbebs)));
 }
 
 static void json_registers_cmbswtp(uint32_t cmbswtp, struct json_object *r)
@@ -1213,8 +1193,9 @@ static void json_registers_cmbswtp(uint32_t cmbswtp, struct json_object *r)
 
 	obj_add_uint_nx(r, "cmbswtp", cmbswtp);
 
-	obj_add_uint_nx(r, "CMB Sustained Write Throughput (CMBSWTV)", cmbswtp >> 8);
-	sprintf(str, "%s/second", nvme_register_unit_to_string(cmbswtp & 0xf));
+	obj_add_uint_nx(r, "CMB Sustained Write Throughput (CMBSWTV)",
+			NVME_CMBSWTP_CMBSWTV(cmbswtp));
+	sprintf(str, "%s/second", nvme_register_unit_to_string(NVME_CMBSWTP_CMBSWTU(cmbswtp)));
 	obj_add_str(r, "CMB Sustained Write Throughput Units (CMBSWTU)", str);
 }
 
@@ -4691,37 +4672,4 @@ struct print_ops *nvme_get_json_print_ops(nvme_print_flags_t flags)
 {
 	json_print_ops.flags = flags;
 	return &json_print_ops;
-}
-
-void obj_add_byte_array(struct json_object *o, const char *k, unsigned char *buf, int len)
-{
-	int i;
-
-	_cleanup_free_ char *value = NULL;
-
-	if (!buf || !len) {
-		obj_add_str(o, k, "No information provided");
-		return;
-	}
-
-	value = calloc(1, (len + 1) * 2 + 1);
-
-	if (!value) {
-		obj_add_str(o, k, "Could not allocate string");
-		return;
-	}
-
-	sprintf(value, "0x");
-	for (i = 1; i <= len; i++)
-		sprintf(&value[i * 2], "%02x", buf[len - i]);
-
-	obj_add_str(o, k, value);
-}
-
-void obj_add_0nprix64(struct json_object *o, const char *k, uint64_t v, int width)
-{
-	char str[STR_LEN];
-
-	sprintf(str, "0x%0*"PRIx64"", width, v);
-	obj_add_str(o, k, str);
 }

@@ -829,8 +829,10 @@ static int netapp_output_format(char *format)
 		return -EINVAL;
 	if (!strcmp(format, "normal"))
 		return NNORMAL;
+#ifdef CONFIG_JSONC
 	if (!strcmp(format, "json"))
 		return NJSON;
+#endif /* CONFIG_JSONC */
 	if (!strcmp(format, "column"))
 		return NCOLUMN;
 	return -EINVAL;

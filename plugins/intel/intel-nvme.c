@@ -336,7 +336,9 @@ static int get_additional_smart_log(int argc, char **argv, struct command *cmd, 
 	    "Get Intel vendor specific additional smart log (optionally, for the specified namespace), and show it.";
 	const char *namespace = "(optional) desired namespace";
 	const char *raw = "Dump output in binary format";
+#ifdef CONFIG_JSONC
 	const char *json = "Dump output in json format";
+#endif /* CONFIG_JSONC */
 
 	struct nvme_additional_smart_log smart_log;
 	struct nvme_dev *dev;
@@ -355,7 +357,7 @@ static int get_additional_smart_log(int argc, char **argv, struct command *cmd, 
 	OPT_ARGS(opts) = {
 		OPT_UINT("namespace-id", 'n', &cfg.namespace_id, namespace),
 		OPT_FLAG("raw-binary",   'b', &cfg.raw_binary,   raw),
-		OPT_FLAG("json",         'j', &cfg.json,         json),
+		OPT_FLAG_JSON("json",    'j', &cfg.json,         json),
 		OPT_END()
 	};
 
@@ -1032,7 +1034,9 @@ static int get_lat_stats_log(int argc, char **argv, struct command *cmd, struct 
 
 	const char *desc = "Get Intel Latency Statistics log and show it.";
 	const char *raw = "Dump output in binary format";
+#ifdef CONFIG_JSONC
 	const char *json = "Dump output in json format";
+#endif /* CONFIG_JSONC */
 	const char *write = "Get write statistics (read default)";
 
 	struct config {
@@ -1047,7 +1051,7 @@ static int get_lat_stats_log(int argc, char **argv, struct command *cmd, struct 
 	OPT_ARGS(opts) = {
 		OPT_FLAG("write",	'w', &cfg.write,	write),
 		OPT_FLAG("raw-binary",	'b', &cfg.raw_binary,	raw),
-		OPT_FLAG("json",	'j', &cfg.json,		json),
+		OPT_FLAG_JSON("json",	'j', &cfg.json,		json),
 		OPT_END()
 	};
 
